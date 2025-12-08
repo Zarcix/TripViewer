@@ -2,13 +2,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Sequence
 from folium.plugins import BeautifyIcon
-from folium import (
-    Map,
-    Marker,
-    FeatureGroup,
-    Popup,
-    LayerControl
-)
+from folium import Map, Marker, FeatureGroup, Popup, LayerControl
 
 import colorsys
 import random
@@ -30,17 +24,19 @@ MEDIA_STYLE = "max-height: 15vw; max-width: 10vw; object-fit: contain;"
 POPUP_STYLE = "max-height: 15vw; overflow: scroll"
 HEADER_MIN_WIDTH = "15vw"
 
+
 @dataclass
 class FeatureGroupData:
     feature_number: int
     feature_color: str
 
-class FoliumMapHandler():
-    def __init__(self, starting_location: Sequence[float] | None = [0, 0], zoom: int = 3):
+
+class FoliumMapHandler:
+    def __init__(
+        self, starting_location: Sequence[float] | None = [0, 0], zoom: int = 3
+    ):
         self.folium_map = Map(
-            location=starting_location,
-            min_zoom=zoom,
-            zoom_start=zoom
+            location=starting_location, min_zoom=zoom, zoom_start=zoom
         )
 
         self.feature_group_data: dict[FeatureGroup, FeatureGroupData] = {}
@@ -55,21 +51,20 @@ class FoliumMapHandler():
         return f"#{r:02x}{g:02x}{b:02x}"
 
     def add_feature_group_and_set_context(self, group_name: str, show_by_default=False):
-        '''
+        """
         Creates a new feature group and sets it as the current feature group context.
         This group context will not change until a new feature group is added
-        '''
-        feature_group = FeatureGroup(
-            name=group_name,
-            show=show_by_default
-        ).add_to(self.folium_map)
-        
+        """
+        feature_group = FeatureGroup(name=group_name, show=show_by_default).add_to(
+            self.folium_map
+        )
+
         self.total_feature_count += 1
         self.feature_group = feature_group
 
         feature_data = FeatureGroupData(
             feature_number=self.total_feature_count,
-            feature_color=self._get_random_feature_color()
+            feature_color=self._get_random_feature_color(),
         )
         self.feature_group_data[feature_group] = feature_data
 
@@ -146,9 +141,7 @@ class FoliumMapHandler():
         # Populate Coordinates
         for coords, metadata_list in gps_group.items():
             html = self._build_popup_html(coords, metadata_list)
-            coord_groups[coords].append(
-                Popup(html, max_width="500%", lazy=True)
-            )
+            coord_groups[coords].append(Popup(html, max_width="500%", lazy=True))
 
             index_range = self._build_index_range(metadata_list)
             coord_groups[coords].append(index_range)
@@ -161,12 +154,9 @@ class FoliumMapHandler():
                 number=feature_data.feature_number,
                 inner_icon_style="margin-top:0;",
             )
-            Marker(
-                coord,
-                popup=popup,
-                icon=icon_number,
-                tooltip=index_range
-            ).add_to(self.feature_group)
+            Marker(coord, popup=popup, icon=icon_number, tooltip=index_range).add_to(
+                self.feature_group
+            )
 
     def finalize_map(self):
         LayerControl().add_to(self.folium_map)
