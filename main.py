@@ -56,9 +56,8 @@ def main():
     # Get Metadata
     metadata_by_folder: dict[str, list[Metadata]] = {}
     for folder, files in folder_files.items():
-        metadata_by_folder[folder] = photoHandler.grab_metadata(files)
+        metadata_by_folder[folder] = photoHandler.grab_metadata(files, directory)
 
-    breakpoint()
     # Build The Map
     for folder_name, file_metadata in metadata_by_folder.items():
         gps_groups = defaultdict(list)
@@ -71,15 +70,7 @@ def main():
     renderHandler.finalize_map()
 
     # Render / Save the Map
-    file_path = filedialog.asksaveasfilename(
-        title="Save Map As",
-        defaultextension=".html",
-        filetypes=[("HTML files", "*.html")],
-    )
-
-    if not file_path:
-        print("Save Cancelled")
-        return
+    file_path = f"{directory}/map.html"
 
     renderHandler.render_map(file_path)
 

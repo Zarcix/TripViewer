@@ -17,7 +17,7 @@ class PhotoMetadataHandler:
     def __init__(self):
         pass
 
-    def grab_metadata(self, files) -> list[Metadata]:
+    def grab_metadata(self, files, base_path) -> list[Metadata]:
         et = exiftool.ExifToolHelper()
 
         def __parse_metadata(metadata):
@@ -43,7 +43,6 @@ class PhotoMetadataHandler:
 
             return metadata
 
-        breakpoint()
         metadatas = et.get_metadata(files)
         with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
             metadatas = list(executor.map(__parse_metadata, metadatas))
@@ -63,7 +62,7 @@ class PhotoMetadataHandler:
                         (m.get("Composite:GPSPosition") or "0.0000 0.0000").split(" "),
                     )
                 ),
-                Path=m.get("SourceFile"),
+                Path=os.path.relpath(m.get("SourceFile"), base_path),
             )
             for m in metadatas
         ]
