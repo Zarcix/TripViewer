@@ -75,43 +75,56 @@ class FoliumMapHandler:
         self.feature_group = new_group
 
     def _make_media_html(self, metadata):
-        """Return the <img> or <video> HTML depending on file type."""
+        """Return clickable <img> or <video> HTML depending on file type."""
         path = metadata.Path
         ext = path.lower().rsplit(".", 1)[-1]
 
         mime = VIDEO_MIME_TYPES.get(ext)
         if mime:  # video
-            return (
-                f"<video controls style='{MEDIA_STYLE}'>"
-                f"<source src='{path}' type='{mime}'>"
-                "</video>"
-            )
+            return f"""
+<div>
+    <video controls style='{MEDIA_STYLE}'>
+        <source src='{path}' type='{mime}'>
+    </video>
+    <div>
+        <a href='{path}' target='_blank' rel='noopener noreferrer'>
+            Open video in new tab
+        </a>
+    </div>
+</div>
+"""
 
-        # image fallback
-        return f"<img src='{path}' style='{MEDIA_STYLE}'>"
+        # image
+        return f"""
+<div>
+    <a href='{path}' target='_blank' rel='noopener noreferrer'>
+        <img src='{path}' style='{MEDIA_STYLE}'>
+    </a>
+</div>
+"""
 
     def _build_popup_html(self, coords, metadata_list):
         """Build the full popup HTML for all media at a coordinate."""
-        html = (
-            f"<div style='{POPUP_STYLE}'>"
-            f"<div style='min-width: {HEADER_MIN_WIDTH};'>"
-            f"<h1>Long Lat: {coords}</h1>"
-            "<h1>Images in this location:</h1>"
-            "</div>"
-        )
+        html = f"""
+<div style='{POPUP_STYLE}'>
+    <div style='min-width: {HEADER_MIN_WIDTH};'>
+        <h1>Images at this location:</h1>
+        <h6>Note that all the medias are collapsable</h6>
+    </div>
+"""
 
         for index, metadata in metadata_list:
             media_html = self._make_media_html(metadata)
-            path = metadata.Path
+            # path = metadata.Path
 
-            html += (
-                "<details>"
-                "<summary style='font-size: 1.5em; font-weight: bold'>"
-                f"Picture Number {index}</summary>"
-                f"<div><a href='{path}' target='_blank'>File Location</a></div>"
-                f"{media_html}"
-                "</details>"
-            )
+            html += f"""
+<details open>
+    <summary style='font-size: 1.5em; font-weight: bold'>
+        ⬘ Media Number {index}
+    </summary>
+    {media_html}
+</details>
+"""
 
         html += "</div>"
         return html
