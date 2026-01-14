@@ -25,14 +25,10 @@ def main():
 
     # Build The Map
     for folder_name, file_metadata in metadata_date_group.items():
-        gps_groups = defaultdict(list)
-        for idx, metadata in enumerate(file_metadata):
-            gps_groups[tuple(metadata.GPS)].append((idx, metadata))
-
         renderHandler.add_feature_group_and_set_context(
             folder_name, show_by_default=True
         )
-        renderHandler.add_gps_coords_as_markers(gps_groups)
+        renderHandler.add_gps_coords_as_markers(file_metadata)
 
     renderHandler.finalize_map()
 

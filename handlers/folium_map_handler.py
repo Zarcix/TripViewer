@@ -1,11 +1,22 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Sequence
-from folium.plugins import BeautifyIcon
-from folium import Map, Marker, FeatureGroup, Popup, LayerControl
+from folium.plugins import (
+    BeautifyIcon,
+    MarkerCluster,
+)
+from folium import (
+    Map,
+    Marker,
+    FeatureGroup,
+    Popup,
+    LayerControl,
+)
 
 import colorsys
 import random
+
+from .file_handler import Metadata
 
 VIDEO_MIME_TYPES = {
     "mp4": "video/mp4",
@@ -20,9 +31,71 @@ VIDEO_MIME_TYPES = {
 }
 
 
-MEDIA_STYLE = "max-height: 15vw; max-width: 10vw; object-fit: contain;"
-POPUP_STYLE = "max-height: 15vw; overflow: scroll"
+MEDIA_STYLE = """
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+"""
+
+POPUP_STYLE = """
+    overflow: auto;
+"""
+
 HEADER_MIN_WIDTH = "15vw"
+
+VIDEO_HTML = """
+<div>
+    <video controls style='{MEDIA_STYLE}'>
+        <source src='{path}' type='{mime}'>
+    </video>
+    <div>
+        <a href='{path}' target='_blank' rel='noopener noreferrer'>
+            Open video in new tab
+        </a>
+    </div>
+</div>
+"""
+
+IMAGE_HTML = """
+<div>
+    <a href='{path}' target='_blank' rel='noopener noreferrer'>
+        <img src='{path}' style='{MEDIA_STYLE}'>
+    </a>
+</div>
+"""
+
+POPUP_HTML = """
+<div style='{POPUP_STYLE}'>
+    <div style='min-width: {HEADER_MIN_WIDTH};'>
+        <h1 style='font-weight: bold'>
+            Image at this location:
+        </h1>
+        <h4>
+            Note that you can click on the media below to open it in a new tab
+        </h4>
+        <h4>
+            You can click on the additional details below to view
+        </h4>
+    </div>
+
+    {MEDIA_HTML}
+
+    <details>
+        <summary style='font-weight: bold'>
+            ⬘ Additional Details:
+        </summary>
+        <div>
+            Photo Taken: {photo_date}
+        </div>
+        <div>
+            Photo Coordinates: {photo_coords}
+        </div>
+    </details>
+</div>
+"""
 
 
 @dataclass
@@ -80,96 +153,46 @@ class FoliumMapHandler:
         ext = path.lower().rsplit(".", 1)[-1]
 
         mime = VIDEO_MIME_TYPES.get(ext)
-        if mime:  # video
-            return f"""
-<div>
-    <video controls style='{MEDIA_STYLE}'>
-        <source src='{path}' type='{mime}'>
-    </video>
-    <div>
-        <a href='{path}' target='_blank' rel='noopener noreferrer'>
-            Open video in new tab
-        </a>
-    </div>
-</div>
-"""
+        if mime:
+            return VIDEO_HTML.format(MEDIA_STYLE=MEDIA_STYLE, path=path, mime=mime)
 
-        # image
-        return f"""
-<div>
-    <a href='{path}' target='_blank' rel='noopener noreferrer'>
-        <img src='{path}' style='{MEDIA_STYLE}'>
-    </a>
-</div>
-"""
+        return IMAGE_HTML.format(
+            MEDIA_STYLE=MEDIA_STYLE,
+            path=path,
+        )
 
-    def _build_popup_html(self, coords, metadata_list):
-        """Build the full popup HTML for all media at a coordinate."""
-        html = f"""
-<div style='{POPUP_STYLE}'>
-    <div style='min-width: {HEADER_MIN_WIDTH};'>
-        <h1>Images at this location:</h1>
-        <h6>Note that all the medias are collapsable</h6>
-    </div>
-"""
+    def _build_popup_html(self, metadata: Metadata):
+        media_html = self._make_media_html(metadata)
+        photo_date = metadata.ParsedDate.strftime("%B %d, %Y at %I:%M %p %Z")
+        photo_coords = f"{metadata.GPS[0]:<.5f}, {metadata.GPS[1]:<.5f}"
 
-        for index, metadata in metadata_list:
-            media_html = self._make_media_html(metadata)
-            # path = metadata.Path
+        popup_html = POPUP_HTML.format(
+            POPUP_STYLE=POPUP_STYLE,
+            HEADER_MIN_WIDTH=HEADER_MIN_WIDTH,
+            MEDIA_HTML=media_html,
+            photo_date=photo_date,
+            photo_coords=photo_coords,
+        )
+        return popup_html
 
-            html += f"""
-<details open>
-    <summary style='font-size: 1.5em; font-weight: bold'>
-        ⬘ Media Number {index}
-    </summary>
-    {media_html}
-</details>
-"""
-
-        html += "</div>"
-        return html
-
-    def _build_index_range(self, metadata_list):
-        # Grab Indexes
-        indexes = [m[0] for m in metadata_list]
-
-        ranges = []
-        start = prev = indexes[0]
-
-        for n in indexes[1:]:
-            if n != prev + 1:
-                ranges.append(f"{start}-{prev}" if start != prev else str(start))
-                start = n
-            prev = n
-
-        ranges.append(f"{start}-{prev}" if start != prev else str(start))
-
-        return ", ".join(ranges)
-
-    def add_gps_coords_as_markers(self, gps_group):
+    def add_gps_coords_as_markers(self, metadata: dict[Metadata]):
         feature_data = self.feature_group_data[self.feature_group]
-        # Group Coordinates based on groups
-        coord_groups = defaultdict(list)
 
-        # Populate Coordinates
-        for coords, metadata_list in gps_group.items():
-            html = self._build_popup_html(coords, metadata_list)
-            coord_groups[coords].append(Popup(html, max_width="500%", lazy=True))
+        marker_cluster = MarkerCluster().add_to(self.feature_group)
+        for index, data in enumerate(metadata, 1):
+            html = self._build_popup_html(data)  # Make HTML Here
 
-            index_range = self._build_index_range(metadata_list)
-            coord_groups[coords].append(index_range)
-
-        # Create and Place Markers
-        for coord, (popup, index_range) in coord_groups.items():
-            icon_number = BeautifyIcon(
+            # Create objects for the map
+            popup = Popup(html, max_width="800%", lazy=True)
+            icon = BeautifyIcon(
                 border_color=feature_data.feature_color,
                 text_color="#00ABDC",
-                number=feature_data.feature_number,
+                number=index,
                 inner_icon_style="margin-top:0;",
             )
-            Marker(coord, popup=popup, icon=icon_number, tooltip=index_range).add_to(
-                self.feature_group
-            )
+
+            # Final Marker
+            Marker(location=data.GPS, popup=popup, icon=icon).add_to(marker_cluster)
 
     def finalize_map(self):
         LayerControl().add_to(self.folium_map)

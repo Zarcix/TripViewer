@@ -57,6 +57,8 @@ class FileHandler:
                     # GPS Data
                     "-Composite:GPSLatitude",
                     "-Composite:GPSLongitude",
+                    "-XMP:GPSLatitude",
+                    "-XMP:GPSLongitude",
                     # Date Data
                     "-EXIF:DateTimeOriginal",
                     "-QuickTime:CreateDate",
@@ -71,8 +73,12 @@ class FileHandler:
             Metadata(
                 ParsedDate=m.get("ParsedDate"),
                 GPS=[
-                    m.get("Composite:GPSLatitude") or "0.0",
-                    m.get("Composite:GPSLongitude") or "0.0",
+                    float(
+                        m.get("Composite:GPSLatitude", m.get("XMP:GPSLatitude", 0.0))
+                    ),
+                    float(
+                        m.get("Composite:GPSLongitude", m.get("XMP:GPSLongitude", 0.0))
+                    ),
                 ],
                 Path=os.path.relpath(m.get("SourceFile"), self.parent_directory),
             )
