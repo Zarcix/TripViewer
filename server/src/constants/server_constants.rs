@@ -1,0 +1,1 @@
+pub const SERVER_PATH: &'static str= "/home/personal/Pictures/Sample Photos";
