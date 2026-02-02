@@ -46,9 +46,7 @@ async fn serve_files(path: PathBuf, _user_auth: UserAuth<'_>) -> Result<BrowseRe
         let photo_entries: Vec<String> = entries
             .filter_map(|entry| {
                 let path = entry.ok()?.path();
-                path.strip_prefix(SERVER_PATH)
-                    .ok()
-                    .map(|p| p.to_string_lossy().into_owned())
+                path.file_name().map(|path| path.to_string_lossy().into_owned())
             })
             .collect();
         return Ok(BrowseResponse::Listing(Json(photo_entries)))

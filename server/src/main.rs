@@ -15,5 +15,5 @@ fn run_server() -> _ {
     rocket::build()
         .mount("/api/album", album_api::api_routes::route_list())
         .mount("/api/photo", photo_api::api_routes::route_list())
-        .mount("/image/serve", file_server::api_routes())
+        .mount("/imageserver", file_server::api_routes())
 }

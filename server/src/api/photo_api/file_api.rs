@@ -1,10 +1,9 @@
-use std::fs::{create_dir_all, remove_file, read_dir};
+use std::fs::{create_dir_all, remove_file};
 use std::path::{
     Path, PathBuf
 };
 use rocket::form::Form;
 use rocket::http::Status;
-use rocket::serde::json::Json;
 use sanitize_filename::sanitize;
 
 use crate::constants::{
@@ -17,21 +16,6 @@ use super::forms::{
     FileUploadForm,
     FileDeleteForm
 };
-
-#[get("/")]
-pub fn get_photos(_user_auth: UserAuth<'_>) -> Result<Json<Vec<String>>, Status> {
-    let photo_dir: PathBuf = Path::new(SERVER_PATH).join(UPLOAD_DIR);
-    let raw_entries = read_dir(photo_dir).map_err(|_: std::io::Error| Status::InternalServerError)?;
-    let photo_entries: Vec<String> = raw_entries
-        .filter_map(|entry| {
-            let path = entry.ok()?.path();
-            path.strip_prefix(SERVER_PATH)
-                .ok()
-                .map(|p| p.to_string_lossy().into_owned())
-        })
-        .collect();
-    Ok(Json(photo_entries))
-}
 
 #[post("/", data = "<form>")]
 pub async fn upload_photo(mut form: Form<FileUploadForm<'_>>, _user_auth: UserAuth<'_>) -> Result<Status, Status>{
