@@ -3,14 +3,12 @@ use rocket::http::Status;
 use sanitize_filename::sanitize;
 use std::path::{Path, PathBuf};
 
-use crate::constants::{
-    filehandle_constants::PHOTOSET_DIR,
-    server_constants::SERVER_PATH
-};
+use crate::constants::{filehandle_constants::PHOTOSET_DIR, server_constants::SERVER_PATH};
 
-pub fn resolve_photoset_path(photoset: &PathBuf) -> Result<PathBuf, Status> {
+pub fn resolve_photoset_path(photoset: &Path) -> Result<PathBuf, Status> {
     photoset.components().next().ok_or(Status::BadRequest)?;
-    let cleaned_photoset: PathBuf = photoset.iter()
+    let cleaned_photoset: PathBuf = photoset
+        .iter()
         .map(|seg| sanitize(seg.to_string_lossy().as_ref()))
         .collect();
 

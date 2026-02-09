@@ -1,5 +1,3 @@
-use std::env;
-
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
 
