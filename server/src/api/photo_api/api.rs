@@ -23,10 +23,7 @@ pub async fn upload_photo(
     create_dir_all(&photo_dir).map_err(|_| Status::InternalServerError)?;
 
     let photo_path: PathBuf = photo_dir.join(filename);
-    photo_path
-        .exists()
-        .then(|| Err(Status::Conflict))
-        .unwrap_or(Ok(()))?;
+    if photo_path.exists() {Err(Status::Conflict)} else {Ok(())}?;
 
     // Move upload file into path
     file.move_copy_to(&photo_path)
@@ -44,9 +41,8 @@ pub async fn delete_photo(
     // Get path and make sure it actually exists
     let filename = sanitize(form.filename);
     let photo_path: PathBuf = Path::new(SERVER_PATH).join(UPLOAD_DIR).join(filename);
-    (!photo_path.exists())
-        .then(|| Err(Status::NotFound))
-        .unwrap_or(Ok(()))?;
+
+    if !photo_path.exists() {Err(Status::NotFound)} else {Ok(())}?;
 
     // Attempt to delete file
     println!("Deleting File {:?}", &photo_path);

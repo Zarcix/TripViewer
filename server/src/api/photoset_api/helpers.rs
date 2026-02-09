@@ -1,6 +1,6 @@
+use log::warn;
 use rocket::http::Status;
 use std::path::Path;
-use log::warn;
 
 pub fn root_guard_check<P: AsRef<Path>>(storage_root: P, full_path: P) -> Result<(), Status> {
     let root = storage_root.as_ref();

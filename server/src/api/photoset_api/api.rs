@@ -1,6 +1,6 @@
-use std::fs::{create_dir_all, remove_dir};
+use std::fs::remove_dir;
 
-use log::{debug, error, info, trace, warn};
+use log::{error, info, warn};
 
 use std::path::PathBuf;
 
@@ -9,11 +9,11 @@ use sanitize_filename::sanitize;
 
 use crate::api::request_guards::UserAuth;
 
-use crate::constants::{filehandle_constants::PHOTOSET_DIR, server_constants::SERVER_PATH};
 use super::helpers::root_guard_check;
+use crate::constants::{filehandle_constants::PHOTOSET_DIR, server_constants::SERVER_PATH};
 
 #[post("/<photoset..>")]
-pub fn create_photoset(photoset: PathBuf, _user_auth: UserAuth) -> Result<Status, Status> {
+pub fn create_photoset(photoset: PathBuf, _userauth: UserAuth) -> Result<Status, Status> {
     // 1. Path must not be empty
     photoset.components().next().ok_or(Status::BadRequest)?;
 
@@ -38,7 +38,11 @@ pub fn create_photoset(photoset: PathBuf, _user_auth: UserAuth) -> Result<Status
 
     // 4. Create the tree
     std::fs::create_dir_all(&full_path).map_err(|e| {
-        error!("Could not create photoset tree {}: {}", full_path.display(), e);
+        error!(
+            "Could not create photoset tree {}: {}",
+            full_path.display(),
+            e
+        );
         match e.kind() {
             std::io::ErrorKind::PermissionDenied => Status::Forbidden,
             _ => Status::InternalServerError,
@@ -51,8 +55,11 @@ pub fn create_photoset(photoset: PathBuf, _user_auth: UserAuth) -> Result<Status
 #[patch("/")]
 pub fn update_photoset(_user_auth: UserAuth) {}
 
+#[put("/<photoset..>")]
+pub fn assign_photoset(photoset: PathBuf, _userauth: UserAuth) {}
+
 #[delete("/<photoset..>")]
-pub fn delete_photoset(photoset: PathBuf, _user_auth: UserAuth) -> Result<Status, Status> {
+pub fn delete_photoset(photoset: PathBuf, _userauth: UserAuth) -> Result<Status, Status> {
     // 1. Path must not be empty
     photoset.components().next().ok_or(Status::BadRequest)?;
 

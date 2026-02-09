@@ -1,6 +1,6 @@
 pub mod api_routes;
 
-mod file_api;
+mod api;
 
 // Utilities
 mod forms;
