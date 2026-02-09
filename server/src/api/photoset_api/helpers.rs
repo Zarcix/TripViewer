@@ -1,8 +1,29 @@
 use log::warn;
 use rocket::http::Status;
-use std::path::Path;
+use sanitize_filename::sanitize;
+use std::path::{Path, PathBuf};
 
-pub fn root_guard_check<P: AsRef<Path>>(storage_root: P, full_path: P) -> Result<(), Status> {
+use crate::constants::{
+    filehandle_constants::PHOTOSET_DIR,
+    server_constants::SERVER_PATH
+};
+
+pub fn resolve_photoset_path(photoset: &PathBuf) -> Result<PathBuf, Status> {
+    photoset.components().next().ok_or(Status::BadRequest)?;
+    let cleaned_photoset: PathBuf = photoset.iter()
+        .map(|seg| sanitize(seg.to_string_lossy().as_ref()))
+        .collect();
+
+    let storage_root = PathBuf::from(SERVER_PATH).join(PHOTOSET_DIR);
+    let full_path = storage_root.join(&cleaned_photoset);
+
+    // 2. Root Guard: Ensure we aren't targeting the root storage folder
+    root_guard_check(&storage_root, &full_path)?;
+
+    Ok(full_path)
+}
+
+fn root_guard_check<P: AsRef<Path>>(storage_root: P, full_path: P) -> Result<(), Status> {
     let root = storage_root.as_ref();
     let path = full_path.as_ref();
 

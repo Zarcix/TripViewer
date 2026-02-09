@@ -1,34 +1,24 @@
-use std::fs::remove_dir;
+use std::fs;
 
 use log::{error, info, warn};
+use sanitize_filename::sanitize;
 
 use std::path::PathBuf;
 
-use rocket::http::Status;
-use sanitize_filename::sanitize;
+use rocket::{form::Form, http::Status};
+
+use super::helpers::resolve_photoset_path;
+use super::forms::{
+    PhotoSetUpdateForm,
+    PhotoSetPutForm
+};
 
 use crate::api::request_guards::UserAuth;
 
-use super::helpers::root_guard_check;
-use crate::constants::{filehandle_constants::PHOTOSET_DIR, server_constants::SERVER_PATH};
 
 #[post("/<photoset..>")]
-pub fn create_photoset(photoset: PathBuf, _userauth: UserAuth) -> Result<Status, Status> {
-    // 1. Path must not be empty
-    photoset.components().next().ok_or(Status::BadRequest)?;
-
-    let cleaned_photoset: PathBuf = photoset
-        .iter()
-        .map(|seg| sanitize(seg.to_string_lossy().as_ref()))
-        .collect();
-
-    let storage_root = PathBuf::from(SERVER_PATH).join(PHOTOSET_DIR);
-    let full_path = storage_root.join(&cleaned_photoset);
-
-    // 2. Root Guard: Ensure we aren't targeting the root storage folder
-    root_guard_check(&storage_root, &full_path)?;
-
-    // 3. Manual Conflict Check: Do we want to allow overwriting/re-creating?
+pub async fn create_photoset(photoset: PathBuf, _userauth: UserAuth<'_>) -> Result<Status, Status> {
+    let full_path = resolve_photoset_path(&photoset)?;
     if full_path.exists() {
         warn!("Creation failed: path already exists at {:?}", full_path);
         return Err(Status::Conflict);
@@ -36,8 +26,7 @@ pub fn create_photoset(photoset: PathBuf, _userauth: UserAuth) -> Result<Status,
 
     info!("Creating Photoset: {}", full_path.display());
 
-    // 4. Create the tree
-    std::fs::create_dir_all(&full_path).map_err(|e| {
+    fs::create_dir_all(&full_path).map_err(|e| {
         error!(
             "Could not create photoset tree {}: {}",
             full_path.display(),
@@ -52,34 +41,39 @@ pub fn create_photoset(photoset: PathBuf, _userauth: UserAuth) -> Result<Status,
     Ok(Status::Created)
 }
 
-#[patch("/")]
-pub fn update_photoset(_user_auth: UserAuth) {}
+#[patch("/<photoset..>", data = "<form>")]
+pub async fn update_photoset(photoset: PathBuf, form: Form<PhotoSetUpdateForm<'_>>, _user_auth: UserAuth<'_>) -> Result<Status, Status> {
+    let full_path = resolve_photoset_path(&photoset)?;
+    if !full_path.exists() {
+        warn!("Photoset update path not found: {}", &photoset.display());
+        return Err(Status::NotFound);
+    }
 
-#[put("/<photoset..>")]
-pub fn assign_photoset(photoset: PathBuf, _userauth: UserAuth) {}
+    if let Some(new_name) = form.new_name {
+        let sanitized_name = sanitize(new_name);
+
+        let parent = full_path.parent().ok_or(Status::InternalServerError)?;
+        let new_full_path = parent.join(sanitized_name);
+
+        fs::rename(&full_path, &new_full_path).map_err(|e| {
+            error!("Failed to rename photoset: {}", e);
+            Status::InternalServerError
+        })?;
+    }
+
+    Ok(Status::Accepted)
+}
+
+#[put("/<photoset..>", data = "<form>")]
+pub async fn assign_photoset(photoset: PathBuf, form: Form<PhotoSetPutForm<'_>>, _userauth: UserAuth<'_>) {}
 
 #[delete("/<photoset..>")]
-pub fn delete_photoset(photoset: PathBuf, _userauth: UserAuth) -> Result<Status, Status> {
-    // 1. Path must not be empty
-    photoset.components().next().ok_or(Status::BadRequest)?;
-
-    let cleaned_photoset: PathBuf = photoset
-        .iter()
-        .map(|seg| sanitize(seg.to_string_lossy().as_ref()))
-        .collect();
-    info!("Deleting Photoset: {}", &cleaned_photoset.display());
-
-    let storage_root = PathBuf::from(SERVER_PATH).join(PHOTOSET_DIR);
-    let full_path = storage_root.join(&cleaned_photoset);
-
-    // 2. Root Guard Check
-    root_guard_check(&storage_root, &full_path)?;
-
-    // 3. Remove Dir. If it's not empty it will fail.
-    remove_dir(&full_path).map_err(|e| {
+pub async fn delete_photoset(photoset: PathBuf, _userauth: UserAuth<'_>) -> Result<Status, Status> {
+    let full_path = resolve_photoset_path(&photoset)?;
+    fs::remove_dir(&full_path).map_err(|e| {
         error!(
             "Failed to delete {}. System error: {}",
-            cleaned_photoset.display(),
+            full_path.display(),
             e
         );
         match e.kind() {
