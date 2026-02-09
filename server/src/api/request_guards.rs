@@ -1,3 +1,5 @@
+use std::env;
+
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
 
@@ -19,7 +21,7 @@ impl<'r> FromRequest<'r> for UserAuth<'r> {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         /// Returns true if `key` is a valid API key string.
         fn is_valid(key: &str) -> bool {
-            key == API_KEY
+            key == API_KEY.get().unwrap_or(&String::new())
         }
 
         match req.headers().get_one("Bearer") {
