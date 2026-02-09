@@ -1,14 +1,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rocket::serde::json::Json;
-use rocket::{fs::NamedFile, http::Status};
 use rocket::request::Request;
-use rocket::Route;
 use rocket::response::{Responder, Result as RocketResult};
+use rocket::serde::json::Json;
+use rocket::Route;
+use rocket::{fs::NamedFile, http::Status};
 
-use crate::constants::server_constants::SERVER_PATH;
 use super::request_guards::UserAuth;
+use crate::constants::server_constants::SERVER_PATH;
 
 pub enum BrowseResponse {
     File(NamedFile),
@@ -25,9 +25,7 @@ impl<'r> Responder<'r, 'static> for BrowseResponse {
 }
 
 pub fn api_routes() -> Vec<Route> {
-    routes![
-        serve_files
-    ]
+    routes![serve_files]
 }
 
 #[get("/<path..>")]
@@ -46,16 +44,14 @@ async fn serve_files(path: PathBuf, _user_auth: UserAuth<'_>) -> Result<BrowseRe
         let photo_entries: Vec<String> = entries
             .filter_map(|entry| {
                 let path = entry.ok()?.path();
-                path.file_name().map(|path| path.to_string_lossy().into_owned())
+                path.file_name()
+                    .map(|path| path.to_string_lossy().into_owned())
             })
             .collect();
-        return Ok(BrowseResponse::Listing(Json(photo_entries)))
+        return Ok(BrowseResponse::Listing(Json(photo_entries)));
     }
 
-
-    let file = NamedFile::open(full)
-        .await
-        .map_err(|_| Status::NotFound)?;
+    let file = NamedFile::open(full).await.map_err(|_| Status::NotFound)?;
 
     Ok(BrowseResponse::File(file))
 }

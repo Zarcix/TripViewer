@@ -9,5 +9,5 @@ pub struct FileUploadForm<'r> {
 
 #[derive(FromForm)]
 pub struct FileDeleteForm<'r> {
-    pub filename: &'r str
+    pub filename: &'r str,
 }

@@ -1,5 +1,5 @@
 use rocket::http::Status;
-use rocket::request::{Outcome, Request, FromRequest};
+use rocket::request::{FromRequest, Outcome, Request};
 
 use crate::constants::server_constants::API_KEY;
 
@@ -19,7 +19,6 @@ impl<'r> FromRequest<'r> for UserAuth<'r> {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         /// Returns true if `key` is a valid API key string.
         fn is_valid(key: &str) -> bool {
-            return true;
             key == API_KEY
         }
 
