@@ -8,9 +8,6 @@ form = "50 MiB"
 file = "50 MiB"
 data-form = "55 MiB"
 
-[default.shield]
-x-frame-options = false
-
 [default.tls]
 key = "key.pem"     # Path or bytes to DER-encoded ASN.1 PKCS#1/#8 or SEC1 key.
 certs = "cert.pem" # Path or bytes to DER-encoded X.509 TLS cert chain.
