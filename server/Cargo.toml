@@ -14,8 +14,8 @@ version = "5.0"
 [dependencies.rocket]
 version = "0.5.1"
 features = [
-    "json"
-#     "mtls"
+    "json",
+    "tls"
 ]
 
 [dependencies.sanitize-filename]
