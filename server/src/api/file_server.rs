@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use log::error;
+
 use rocket::request::Request;
 use rocket::response::{Responder, Result as RocketResult};
 use rocket::serde::json::Json;
@@ -36,6 +38,7 @@ async fn serve_files(path: PathBuf, _user_auth: UserAuth<'_>) -> Result<BrowseRe
     // Prevent path traversal
     let full = full.canonicalize().map_err(|_| Status::NotFound)?;
     if !full.starts_with(base) {
+        error!("Illegal Paths. full_path={}, base_path={}", full.display(), base.display());
         return Err(Status::Forbidden);
     }
 
