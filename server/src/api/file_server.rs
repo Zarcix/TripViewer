@@ -30,7 +30,7 @@ pub fn api_routes() -> Vec<Route> {
 
 #[get("/<path..>")]
 async fn serve_files(path: PathBuf, _user_auth: UserAuth<'_>) -> Result<BrowseResponse, Status> {
-    let base = Path::new(SERVER_PATH);
+    let base = Path::new(SERVER_PATH.get().ok_or(Status::InternalServerError)?);
     let full = base.join(&path);
 
     // Prevent path traversal

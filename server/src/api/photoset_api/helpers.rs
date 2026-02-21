@@ -12,7 +12,7 @@ pub fn resolve_photoset_path(photoset: &Path) -> Result<PathBuf, Status> {
         .map(|seg| sanitize(seg.to_string_lossy().as_ref()))
         .collect();
 
-    let storage_root = PathBuf::from(SERVER_PATH).join(PHOTOSET_DIR);
+    let storage_root = PathBuf::from(SERVER_PATH.get().ok_or(Status::InternalServerError)?).join(PHOTOSET_DIR);
     let full_path = storage_root.join(&cleaned_photoset);
 
     // 2. Root Guard: Ensure we aren't targeting the root storage folder

@@ -3,22 +3,41 @@ extern crate rocket;
 
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
-use std::env;
+use clap::Parser;
 
 mod api;
 mod constants;
 mod tasks;
 
-use crate::constants::server_constants::API_KEY;
+use crate::constants::server_constants::{
+    SERVER_PATH,
+    API_KEY
+};
 
 // Route List
 use api::file_server;
 use api::photo_api;
 use api::photoset_api;
 
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// API Key to use for deployment
+    #[arg(long)]
+    api_key: String,
+
+    /// Server Photo Archive Path
+    #[arg(long)]
+    archive_path: String,
+}
+
 fn setup() -> Result<(), String> {
-    let api_key = env::var("API_KEY").map_err(|_| String::from("API_KEY Required"))?;
-    API_KEY.set(api_key)?;
+    let args = Args::parse();
+
+    API_KEY.set(args.api_key)?; 
+    SERVER_PATH.set(args.archive_path)?;
+
     Ok(())
 }
 

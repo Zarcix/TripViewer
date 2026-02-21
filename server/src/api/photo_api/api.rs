@@ -19,7 +19,7 @@ pub async fn upload_photo(
     let file = &mut form.file;
 
     // Build Directory Variables
-    let photo_dir: PathBuf = Path::new(SERVER_PATH).join(PHOTO_DIR);
+    let photo_dir: PathBuf = Path::new(SERVER_PATH.get().ok_or(Status::InternalServerError)?).join(PHOTO_DIR);
     create_dir_all(&photo_dir).map_err(|_| Status::InternalServerError)?;
 
     let photo_path: PathBuf = photo_dir.join(filename);
@@ -44,7 +44,7 @@ pub async fn delete_photo(
 ) -> Result<Status, Status> {
     // Get path and make sure it actually exists
     let filename = sanitize(form.filename);
-    let photo_path: PathBuf = Path::new(SERVER_PATH).join(PHOTO_DIR).join(filename);
+    let photo_path: PathBuf = Path::new(SERVER_PATH.get().ok_or(Status::InternalServerError)?).join(PHOTO_DIR).join(filename);
 
     if !photo_path.exists() {
         Err(Status::NotFound)
