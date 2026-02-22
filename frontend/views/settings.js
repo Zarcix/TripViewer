@@ -1,13 +1,13 @@
 import { getServer, getToken, setServer, setToken } from "../localstorage.js";
 
 export function initSettings() {
-    const serverInput = document.getElementById("server-ip");
-    const tokenInput = document.getElementById("bearer-token");
+    const serverInput = document.getElementById("serverIP");
+    const tokenInput = document.getElementById("bearerToken");
 
     serverInput.value = getServer();
     tokenInput.value = getToken();
 
-    document.getElementById("save-settings").onclick = () => {
+    document.getElementById("saveSettings").onclick = () => {
         setServer(serverInput.value);
         setToken(tokenInput.value);
         alert("Saved.");

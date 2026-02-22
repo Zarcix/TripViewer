@@ -39,6 +39,29 @@ async function loadPhotos() {
     });
 }
 
-export async function initPhotos() {
+async function uploadPhoto() {
+    const fileInput = document.getElementById("uploadFile");
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const form = new FormData();
+    form.append("file", file);
+    form.append("filename", file.name);
+
+    await request("POST", "/api/photo/", form, true);
     loadPhotos();
+}
+
+async function deletePhoto(name) {
+    const form = new FormData();
+    form.append("filename", name);
+
+    await request("DELETE", `/api/photo/`, form, true);
+    loadPhotos();
+}
+
+export function initPhotos() {
+    loadPhotos();
+
+    document.getElementById("uploadButton").onclick = uploadPhoto;
 }
