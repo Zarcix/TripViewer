@@ -1,4 +1,4 @@
 **__pycache__**
-server/target
+target
 Cargo.lock
 *.pem

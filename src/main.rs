@@ -69,12 +69,6 @@ impl Fairing for CORS {
     }
 }
 
-#[options("/<_..>")]
-fn all_options() {
-    // This just returns a 200 OK with the headers
-    // added by the CORS fairing above.
-}
-
 #[launch]
 fn run_server() -> _ {
     setup().expect("Setup Failed");
@@ -86,8 +80,8 @@ fn run_server() -> _ {
 
     rocket::build()
         .attach(CORS)
+        .mount("/", rocket::fs::FileServer::from(rocket::fs::relative!("frontend")))
         .mount("/api/photoset", photoset_api::api_routes::route_list())
         .mount("/api/photo", photo_api::api_routes::route_list())
         .mount("/photos", file_server::api_routes())
-        .mount("/", routes![all_options])
 }
