@@ -53,7 +53,7 @@ pub async fn delete_photo(
     }?;
 
     // Attempt to delete file
-    println!("Deleting File {:?}", &photo_path);
+    info!("Deleting File {}", photo_path.display());
     remove_file(photo_path).map_err(|_| Status::InternalServerError)?;
 
     Ok(Status::NoContent)

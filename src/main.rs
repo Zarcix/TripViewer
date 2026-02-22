@@ -61,12 +61,18 @@ impl Fairing for CORS {
         response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
         response.set_header(Header::new(
             "Access-Control-Allow-Methods",
-            "POST, GET, PATCH, PUT, OPTIONS",
+            "POST, GET, PATCH, PUT, OPTIONS, DELETE",
         ));
         response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
         response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
         response.remove_header("X-Frame-Options");
     }
+}
+
+#[options("/<_..>")]
+fn all_options() {
+    // This just returns a 200 OK with the headers
+    // added by the CORS fairing above.
 }
 
 #[launch]
@@ -80,6 +86,7 @@ fn run_server() -> _ {
 
     rocket::build()
         .attach(CORS)
+        .mount("/", routes![all_options])
         .mount("/", rocket::fs::FileServer::from(rocket::fs::relative!("frontend")))
         .mount("/api/photoset", photoset_api::api_routes::route_list())
         .mount("/api/photo", photo_api::api_routes::route_list())
