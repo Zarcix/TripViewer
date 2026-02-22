@@ -47,6 +47,7 @@ pub async fn delete_photo(
     let photo_path: PathBuf = Path::new(SERVER_PATH.get().ok_or(Status::InternalServerError)?).join(PHOTO_DIR).join(filename);
 
     if !photo_path.exists() {
+        info!("Photo Path: {}", photo_path.display());
         Err(Status::NotFound)
     } else {
         Ok(())
