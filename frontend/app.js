@@ -1,5 +1,5 @@
 import { initPhotos } from './views/photos.js';
-// import { initPhotoSets } from './js/photosets.js';
+import { initPhotoSets } from './views/photosets.js';
 import { initSettings } from './views/settings.js';
 
 const content = document.getElementById("app");
@@ -14,10 +14,10 @@ async function loadView(name) {
             await initPhotos();
             break;
         }
-        // case "photosets": {
-        //     initPhotoSets();
-        //     break;
-        // }
+        case "photosets": {
+            initPhotoSets();
+            break;
+        }
         case "settings": {
             initSettings();
             break;
