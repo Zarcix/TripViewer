@@ -39,3 +39,18 @@ main {
     border: 1px solid #ddd;
     padding: 5px;
 }
+
+#photosetPreview {
+    width: 100%;       /* Fill the horizontal space of the page */
+    height: 60vh;      /* Takes up 60% of the screen height */
+    margin: 20px 0;    /* Adds space above and below so it doesn't touch other UI */
+    border: 2px solid #333;
+    border-radius: 8px;
+    overflow: hidden;  /* Keeps the iframe corners rounded */
+}
+
+.embedded-photo-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+}

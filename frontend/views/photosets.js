@@ -1,5 +1,5 @@
 import { request } from "../api.js";
-import { getServer } from "../localstorage.js";
+import { getServer, getToken } from "../localstorage.js";
 
 let currentPath = "";
 let historyStack = [];
@@ -15,11 +15,12 @@ async function renderPhotoSets(path) {
     currentPath = path;
     document.getElementById("photosetPath").textContent = "/" + path;
     const server_ip = getServer();
+    const token = getToken();
 
     // Get Photos
     let list = [];
     try {
-        const res = await request("GET", "/photos/PhotoSets/" + path);
+        const res = await request("GET", `/${token}/photos/PhotoSets/` + path);
         list = await res.json();
     } catch {
         list = [];
@@ -27,11 +28,17 @@ async function renderPhotoSets(path) {
 
     // Render Photos
     const container = document.getElementById("photosetList");
+    let preview_cont = document.getElementById("photosetPreview");
+    preview_cont.hidden = true;
     container.innerHTML = "";
 
     if (list.length === 0) {
-        container.innerHTML = `<iframe src="${server_ip}/photos/PhotoSets/${currentPath}" width="500" height="300" title="Embedded Page">
-  <p>Your browser does not support iframes.</p>
+        preview_cont.hidden = false;
+        preview_cont.innerHTML = `
+<iframe 
+    src="${server_ip}/${token}/photos/PhotoSets/${currentPath}"
+    class="embedded-photo-frame"
+    title="Photo Browser">
 </iframe>`;
         return;
     }
@@ -39,18 +46,10 @@ async function renderPhotoSets(path) {
     list.forEach(name => {
         const newPath = path ? `${path}/${name}` : name;
         const card = document.createElement("div");
-        card.className = "photoset-card";
-        card.style.display = "flex";
-        card.style.flexDirection = "column";
-        card.style.alignItems = "center";
-        card.style.border = "1px solid #ccc";
-        card.style.padding = "8px";
-        card.style.borderRadius = "4px";
-        card.style.backgroundColor = "#f9f9f9";
 
         // --- Step 1: try image ---
         const img = document.createElement("img");
-        img.src = `${server_ip}/photos/PhotoSets/${newPath}`;
+        img.src = `${server_ip}/${token}/photos/PhotoSets/${newPath}`;
         img.width = 180;
         img.style.objectFit = "cover";
         img.style.marginBottom = "8px";
@@ -69,7 +68,7 @@ async function renderPhotoSets(path) {
         img.onerror = () => {
             // --- Step 2: try video ---
             const video = document.createElement("video");
-            video.src = `${server_ip}/photos/PhotoSets/${newPath}`;
+            video.src = `${server_ip}/${token}/photos/PhotoSets/${newPath}`;
             video.controls = true;
             video.width = 180;
 

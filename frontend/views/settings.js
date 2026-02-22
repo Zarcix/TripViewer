@@ -4,8 +4,8 @@ export function initSettings() {
     const serverInput = document.getElementById("serverIP");
     const tokenInput = document.getElementById("bearerToken");
 
-    serverInput.value = getServer();
-    tokenInput.value = getToken();
+    serverInput.value = getServer() || window.location.origin;
+    tokenInput.value = getToken() || "";
 
     document.getElementById("saveSettings").onclick = () => {
         setServer(serverInput.value);
