@@ -87,5 +87,5 @@ fn run_server() -> _ {
         .mount("/", rocket::fs::FileServer::from(rocket::fs::relative!("frontend")))
         .mount("/api/photoset", photoset_api::api_routes::route_list())
         .mount("/api/photo", photo_api::api_routes::route_list())
-        .mount("/photos", file_server::api_routes())
+        .mount(format!("/{}/photos", API_KEY.get().unwrap()), file_server::api_routes())
 }
