@@ -9,7 +9,6 @@ use rocket::serde::json::Json;
 use rocket::Route;
 use rocket::{fs::NamedFile, http::Status};
 
-use super::request_guards::UserAuth;
 use crate::constants::server_constants::SERVER_PATH;
 
 pub enum BrowseResponse {
@@ -31,7 +30,7 @@ pub fn api_routes() -> Vec<Route> {
 }
 
 #[get("/<path..>")]
-async fn serve_files(path: PathBuf, _user_auth: UserAuth<'_>) -> Result<BrowseResponse, Status> {
+async fn serve_files(path: PathBuf) -> Result<BrowseResponse, Status> {
     let base = Path::new(SERVER_PATH.get().ok_or(Status::InternalServerError)?);
     let full = base.join(&path);
 
