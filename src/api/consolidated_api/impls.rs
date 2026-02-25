@@ -51,10 +51,13 @@ impl <'a> Responder<'a, 'static> for StreamedFile {
         let file_size = metadata.len();
         let extension = file_path.extension().unwrap_or_default().to_string_lossy();
 
-        let range_header = req.headers().get_one("Range").unwrap_or("bytes=0-");
-        let ranges = parse_range_header(range_header)?;
-
-        let (start, end) = (ranges.start, ranges.end.unwrap_or(file_size - 1));
+        let range_header = req.headers().get_one("Range");
+        
+        let (mut start, mut end) = (0, file_size - 1);
+        if let Some(range_str) = range_header {
+            let ranges = parse_range_header(range_str)?;
+            (start, end) = (ranges.start, ranges.end.unwrap_or(file_size - 1));
+        }
         let chunk_size = (end - start + 1) as usize;
 
         file.seek(SeekFrom::Start(start)).map_err(|_| Status::InternalServerError)?;
