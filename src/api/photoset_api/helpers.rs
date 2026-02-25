@@ -3,7 +3,7 @@ use rocket::http::Status;
 use sanitize_filename::sanitize;
 use std::path::{Path, PathBuf};
 
-use crate::constants::{filehandle_constants::PHOTOSET_DIR, server_constants::SERVER_PATH};
+use crate::constants::{filehandle_constants::PHOTOSET_DIR, server_constants::SERVE_PATH};
 
 pub fn resolve_photoset_path(photoset: &Path) -> Result<PathBuf, Status> {
     photoset.components().next().ok_or(Status::BadRequest)?;
@@ -12,7 +12,7 @@ pub fn resolve_photoset_path(photoset: &Path) -> Result<PathBuf, Status> {
         .map(|seg| sanitize(seg.to_string_lossy().as_ref()))
         .collect();
 
-    let storage_root = PathBuf::from(SERVER_PATH.get().ok_or(Status::InternalServerError)?).join(PHOTOSET_DIR);
+    let storage_root = PathBuf::from(SERVE_PATH.get().ok_or(Status::InternalServerError)?).join(PHOTOSET_DIR);
     let full_path = storage_root.join(&cleaned_photoset);
 
     // 2. Root Guard: Ensure we aren't targeting the root storage folder

@@ -12,7 +12,7 @@ use super::helpers::resolve_photoset_path;
 
 use crate::api::request_guards::UserAuth;
 
-use crate::constants::{filehandle_constants::PHOTO_DIR, server_constants::SERVER_PATH};
+use crate::constants::{filehandle_constants::PHOTO_DIR, server_constants::SERVE_PATH};
 
 #[post("/<photoset..>")]
 pub async fn create_photoset(photoset: PathBuf, _userauth: UserAuth<'_>) -> Result<Status, Status> {
@@ -76,7 +76,7 @@ pub async fn assign_photoset(
     _userauth: UserAuth<'_>,
 ) -> Result<Status, Status> {
     let photoset_path = resolve_photoset_path(&photoset)?;
-    let photos_path = PathBuf::from(SERVER_PATH.get().ok_or(Status::InternalServerError)?).join(PHOTO_DIR);
+    let photos_path = PathBuf::from(SERVE_PATH.get().ok_or(Status::InternalServerError)?).join(PHOTO_DIR);
 
     if !photoset_path.exists() {
         warn!("Photoset update path not found: {}", &photoset.display());

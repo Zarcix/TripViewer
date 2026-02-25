@@ -10,7 +10,7 @@ mod constants;
 mod tasks;
 
 use crate::constants::server_constants::{
-    SERVER_PATH,
+    SERVE_PATH,
     API_KEY,
 };
 
@@ -18,6 +18,7 @@ use crate::constants::server_constants::{
 use api::file_server;
 use api::photo_api;
 use api::photoset_api;
+use api::consolidated_api;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -36,7 +37,7 @@ fn setup() -> Result<(), String> {
     let args = Args::parse();
 
     API_KEY.set(args.api_key)?; 
-    SERVER_PATH.set(args.archive_path)?;
+    SERVE_PATH.set(args.archive_path)?;
 
     Ok(())
 }
@@ -85,7 +86,8 @@ fn run_server() -> _ {
         .attach(CORS)
         .mount("/", routes![all_options])
         .mount("/", rocket::fs::FileServer::from(rocket::fs::relative!("frontend")))
-        .mount("/api/photoset", photoset_api::api_routes::route_list())
-        .mount("/api/photo", photo_api::api_routes::route_list())
+        .mount("/api/photoset", consolidated_api::route_list())
+        // .mount("/api/photoset", photoset_api::api_routes::route_list())
+        // .mount("/api/photo", photo_api::api_routes::route_list())
         .mount(format!("/{}/photos", API_KEY.get().unwrap()), file_server::api_routes())
 }
