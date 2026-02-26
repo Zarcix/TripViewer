@@ -1,15 +1,18 @@
-use std::{fs, path::{
+use std::path::{
     Path,
     PathBuf
-}};
+};
 
+use rocket::form::Form;
 use rocket::http::{
     Status,
 };
 
-use crate::{api::consolidated_api::models::FileServerResponse, constants::server_constants::SERVE_PATH};
+use crate::api::consolidated_api::models::FileServerResponse;
+use crate::constants::server_constants::SERVE_PATH;
 
 use super::fs_helpers;
+use super::forms::PhotoSetUpdateForm;
 
 #[get("/<path..>")]
 pub async fn list_photoset(path: PathBuf) -> Result<FileServerResponse, Status> {
@@ -67,4 +70,28 @@ pub async fn create_photoset(path: PathBuf) -> Result<Status, Status> {
     fs_helpers::create_dir(&photoset_path).await?;
 
     Ok(Status::Created)
+}
+
+#[patch("/<path..>", data = "<form>")]
+pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>) -> Result<Status, Status> {
+    info!("Updating PhotoSet at {}", path.display());
+
+    let root = Path::new(
+        SERVE_PATH
+            .get()
+            .ok_or(Status::InternalServerError)?
+    );
+
+    let photoset_path = root
+        .join(&path)
+        .canonicalize()
+        .map_err(|_| Status::NotFound)?;
+
+    let new_path = photoset_path.parent()
+        .ok_or(Status::InternalServerError)?
+        .join(&form.new_name);
+
+    fs_helpers::rename_entry(&photoset_path, &new_path).await?;
+
+    Ok(Status::Accepted)
 }

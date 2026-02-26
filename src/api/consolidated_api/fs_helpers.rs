@@ -75,7 +75,16 @@ pub async fn create_dir(photoset_path: &PathBuf) -> Result<(), Status>{
             std::io::ErrorKind::PermissionDenied => Status::Forbidden,
             _ => Status::InternalServerError,
         }
-    })?;
+    })
+}
 
-    Ok(())
+pub async fn rename_entry(old_path: &PathBuf, new_path: &PathBuf) -> Result<(), Status> {
+    tokio::fs::rename(old_path, new_path).await.map_err(|e| {
+        error!("Failed to rename {} to {}, {}",
+            old_path.display(),
+            new_path.display(),
+            e
+        );
+        Status::InternalServerError
+    })
 }

@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use rocket::serde::{Serialize, Deserialize};
 use rocket::fs::NamedFile;
