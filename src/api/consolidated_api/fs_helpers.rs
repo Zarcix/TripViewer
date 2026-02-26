@@ -13,19 +13,23 @@ use super::models::{FileServerResponse, DirectoryEntry, DirectoryListing};
     "webm", "avi",
 ];
 
-pub fn parse_directory(
+pub async fn parse_directory(
     full_path: &Path,
     request_path: &Path,
 ) -> Result<FileServerResponse, Status> {
+    let internal_error = |_| Status::InternalServerError;
 
     let mut entries = Vec::new();
 
-    for entry in std::fs::read_dir(full_path)
-        .map_err(|_| Status::InternalServerError)?
-    {
-        let entry = entry.map_err(|_| Status::InternalServerError)?;
-        let metadata = entry.metadata()
-            .map_err(|_| Status::InternalServerError)?;
+    let mut dir = tokio::fs::read_dir(full_path)
+        .await
+        .map_err(internal_error)?;
+
+    while let Ok(Some(entry)) = dir.next_entry().await.map_err(internal_error) {
+        let metadata = entry
+            .metadata()
+            .await
+            .map_err(internal_error)?;
 
         entries.push(DirectoryEntry {
             name: entry.file_name().to_string_lossy().into_owned(),
@@ -51,7 +55,7 @@ pub async fn parse_file(
     if MEDIA_EXTS.contains(&file_ext) {
         let stream_file = StreamedFile {
             file: full_path
-        };
+};
         return Ok(FileServerResponse::RangedContent(stream_file));
     }
 

@@ -35,7 +35,7 @@ pub async fn list_photoset(path: PathBuf) -> Result<FileServerResponse, Status> 
     }
 
     if photoset_path.is_dir() {
-        return fs_helpers::parse_directory(&photoset_path, &path)
+        return fs_helpers::parse_directory(&photoset_path, &path).await;
     }
 
     if photoset_path.is_file() {
