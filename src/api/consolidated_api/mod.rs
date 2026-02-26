@@ -7,6 +7,7 @@ mod fs_helpers;
 
 pub fn route_list() -> Vec<Route> {
     routes![
-        api::list_photoset
+        api::list_photoset,
+        api::create_photoset,
     ]
 }

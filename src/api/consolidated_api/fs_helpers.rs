@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use rocket::tokio;
 
 use rocket::{fs::NamedFile, http::Status, serde::json::Json};
 
@@ -42,7 +43,7 @@ pub fn parse_directory(
     Ok(FileServerResponse::DirectoryListing(Json(listing)))
 }
 
-pub async fn parse_file<'a>(
+pub async fn parse_file(
     full_path: PathBuf,
 ) -> Result<FileServerResponse, Status> {
 
@@ -57,4 +58,20 @@ pub async fn parse_file<'a>(
     let file = NamedFile::open(full_path).await.map_err(|_| Status::NotFound)?;
 
     Ok(FileServerResponse::FullContent(file))
+}
+
+pub async fn create_dir(photoset_path: &PathBuf) -> Result<(), Status>{
+    tokio::fs::create_dir_all(photoset_path).await.map_err(|e| {
+        error!(
+            "Could not create photoset tree {}: {}",
+            photoset_path.display(),
+            e
+        );
+        match e.kind() {
+            std::io::ErrorKind::PermissionDenied => Status::Forbidden,
+            _ => Status::InternalServerError,
+        }
+    })?;
+
+    Ok(())
 }
