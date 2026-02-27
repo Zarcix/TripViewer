@@ -23,10 +23,9 @@ impl<'r> FromRequest<'r> for UserAuth<'r> {
         fn is_valid(key: &str) -> bool {
             key == API_KEY.get().unwrap_or(&String::new())
         }
-
-        match req.headers().get_one("Bearer") {
+        match req.cookies().get("Badge") {
             None => Outcome::Error((Status::BadRequest, UserAuthError::Missing)),
-            Some(key) if is_valid(key) => Outcome::Success(UserAuth(key)),
+            Some(key) if is_valid(key.value()) => Outcome::Success(UserAuth(key.value())),
             Some(_) => Outcome::Error((Status::Unauthorized, UserAuthError::Invalid)),
         }
     }

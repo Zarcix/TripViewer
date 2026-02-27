@@ -1,16 +1,16 @@
 use std::path::{Path, PathBuf};
-use rocket::data::{DataStream, ToByteUnit};
+use rocket::data::ToByteUnit;
 use rocket::tokio::io::AsyncWriteExt;
 use rocket::{Data, tokio};
 
 use rocket::{fs::NamedFile, http::Status, serde::json::Json};
 
-use crate::api::consolidated_api::models::StreamedFile;
 use crate::constants::server_constants::{
     STAGING_NAME, STAGING_PATH, UPLOAD_LIMIT_MB
 };
 
 use super::models::{FileServerResponse, DirectoryEntry, DirectoryListing};
+use super::models::StreamedFile;
 
  const MEDIA_EXTS: &[&str] = &[
     "mp4", "m4v", "mov",

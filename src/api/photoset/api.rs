@@ -9,11 +9,11 @@ use rocket::http::{
     Status,
 };
 
-use crate::api::consolidated_api::models::FileServerResponse;
 use crate::constants::server_constants::SERVE_PATH;
 
 use super::fs_helpers;
 use super::forms::PhotoSetUpdateForm;
+use super::models::FileServerResponse;
 
 fn resolve_photoset_path(short_path: &PathBuf) -> Result<PathBuf, Status> {
     let root = Path::new(

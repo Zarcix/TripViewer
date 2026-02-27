@@ -16,10 +16,7 @@ use crate::constants::server_constants::{
 };
 
 // Route List
-use api::file_server;
-use api::photo_api;
-use api::photoset_api;
-use api::consolidated_api;
+use api::photoset;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -92,8 +89,5 @@ fn run_server() -> _ {
         .attach(CORS)
         .mount("/", routes![all_options])
         .mount("/", rocket::fs::FileServer::from(rocket::fs::relative!("frontend")))
-        .mount("/photoset", consolidated_api::route_list())
-        // .mount("/api/photoset", photoset_api::api_routes::route_list())
-        // .mount("/api/photo", photo_api::api_routes::route_list())
-        // .mount(format!("/{}/photos", API_KEY.get().unwrap()), file_server::api_routes())
+        .mount("/photoset", photoset::route_list())
 }
