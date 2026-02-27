@@ -23,7 +23,7 @@ impl<'r> FromRequest<'r> for UserAuth<'r> {
         fn is_valid(key: &str) -> bool {
             key == API_KEY.get().unwrap_or(&String::new())
         }
-        match req.cookies().get("Badge") {
+        match req.cookies().get("auth") {
             Some(key) if is_valid(key.value()) => {
                 Outcome::Success(UserAuth(key.value()))
             }
