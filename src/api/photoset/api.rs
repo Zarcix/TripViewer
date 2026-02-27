@@ -9,6 +9,7 @@ use rocket::http::{
     Status,
 };
 
+use crate::api::request_guards::UserAuth;
 use crate::constants::server_constants::SERVE_PATH;
 
 use super::fs_helpers;
@@ -38,7 +39,7 @@ fn resolve_photoset_path(short_path: &PathBuf) -> Result<PathBuf, Status> {
 }
 
 #[get("/<path..>")]
-pub async fn list_photoset(path: PathBuf) -> Result<FileServerResponse, Status> {
+pub async fn list_photoset(path: PathBuf, _auth: UserAuth<'_>) -> Result<FileServerResponse, Status> {
     info!("Listing PhotoSets at {}", path.display());
     let photoset_path = resolve_photoset_path(&path)?
         .canonicalize()
@@ -56,7 +57,7 @@ pub async fn list_photoset(path: PathBuf) -> Result<FileServerResponse, Status> 
 }
 
 #[post("/<path..>")]
-pub async fn create_photoset(path: PathBuf) -> Result<Status, Status> {
+pub async fn create_photoset(path: PathBuf, _auth: UserAuth<'_>) -> Result<Status, Status> {
     info!("Creating PhotoSet at {}", path.display());
 
     let photoset_path = resolve_photoset_path(&path)?;
@@ -67,7 +68,7 @@ pub async fn create_photoset(path: PathBuf) -> Result<Status, Status> {
 }
 
 #[patch("/<path..>", data = "<form>")]
-pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>) -> Result<Status, Status> {
+pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>, _auth: UserAuth<'_>) -> Result<Status, Status> {
     info!("Updating PhotoSet at {}", path.display());
 
     // Incoming Path Validation //
@@ -109,7 +110,7 @@ pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>) -> R
 }
 
 #[put("/<path..>", data = "<data>")]
-pub async fn put_photoset(path: PathBuf, data: Data<'_>) -> Result<Status, Status> {
+pub async fn put_photoset(path: PathBuf, data: Data<'_>, _auth: UserAuth<'_>) -> Result<Status, Status> {
     let target_path = resolve_photoset_path(&path)?;
 
     target_path
@@ -124,7 +125,7 @@ pub async fn put_photoset(path: PathBuf, data: Data<'_>) -> Result<Status, Statu
 }
 
 #[delete("/<path..>?<force_removal>")]
-pub async fn delete_photoset(path: PathBuf, force_removal: bool) -> Result<Status, Status> {
+pub async fn delete_photoset(path: PathBuf, force_removal: bool, _auth: UserAuth<'_>) -> Result<Status, Status> {
     let target_path = resolve_photoset_path(&path)?
         .canonicalize()
         .map_err(|_| Status::NotFound)?;

@@ -24,9 +24,17 @@ impl<'r> FromRequest<'r> for UserAuth<'r> {
             key == API_KEY.get().unwrap_or(&String::new())
         }
         match req.cookies().get("Badge") {
-            None => Outcome::Error((Status::BadRequest, UserAuthError::Missing)),
-            Some(key) if is_valid(key.value()) => Outcome::Success(UserAuth(key.value())),
-            Some(_) => Outcome::Error((Status::Unauthorized, UserAuthError::Invalid)),
+            Some(key) if is_valid(key.value()) => {
+                Outcome::Success(UserAuth(key.value()))
+            }
+            Some(_) => {
+                error!("Invalid User Credentials");
+                Outcome::Error((Status::Unauthorized, UserAuthError::Invalid))
+            }
+            None => {
+                error!("No User Auth Provided");
+                Outcome::Error((Status::Unauthorized, UserAuthError::Invalid))
+            }
         }
     }
 }
