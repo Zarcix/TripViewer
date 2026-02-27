@@ -7,7 +7,6 @@ use clap::Parser;
 
 mod api;
 mod constants;
-mod tasks;
 
 use crate::constants::server_constants::{
     STAGING_PATH,
