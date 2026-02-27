@@ -3,6 +3,7 @@ use std::path::{
     PathBuf
 };
 
+use rocket::Data;
 use rocket::form::Form;
 use rocket::http::{
     Status,
@@ -14,18 +15,14 @@ use crate::constants::server_constants::SERVE_PATH;
 use super::fs_helpers;
 use super::forms::PhotoSetUpdateForm;
 
-#[get("/<path..>")]
-pub async fn list_photoset(path: PathBuf) -> Result<FileServerResponse, Status> {
-    rocket::info!("Listing PhotoSets at {}", path.display());
+fn resolve_photoset_path(short_path: &PathBuf) -> Result<PathBuf, Status> {
     let root = Path::new(
         SERVE_PATH
             .get()
             .ok_or(Status::InternalServerError)?
     );
-    let photoset_path = root
-        .join(&path)
-        .canonicalize()
-        .map_err(|_| Status::NotFound)?;
+
+    let photoset_path = root.join(short_path);
 
     // Prevent path traversal
     if !photoset_path.starts_with(root) {
@@ -36,6 +33,16 @@ pub async fn list_photoset(path: PathBuf) -> Result<FileServerResponse, Status> 
         );
         return Err(Status::Forbidden);
     }
+
+    return Ok(photoset_path);
+}
+
+#[get("/<path..>")]
+pub async fn list_photoset(path: PathBuf) -> Result<FileServerResponse, Status> {
+    info!("Listing PhotoSets at {}", path.display());
+    let photoset_path = resolve_photoset_path(&path)?
+        .canonicalize()
+        .map_err(|_| Status::NotFound)?;
 
     if photoset_path.is_dir() {
         return fs_helpers::parse_directory(&photoset_path, &path).await;
@@ -51,21 +58,8 @@ pub async fn list_photoset(path: PathBuf) -> Result<FileServerResponse, Status> 
 #[post("/<path..>")]
 pub async fn create_photoset(path: PathBuf) -> Result<Status, Status> {
     info!("Creating PhotoSet at {}", path.display());
-    let root = Path::new(
-        SERVE_PATH
-            .get()
-            .ok_or(Status::InternalServerError)?
-    );
-    let photoset_path = root
-        .join(&path);
 
-    if photoset_path.exists() {
-        warn!(
-            "Creation failed: path already exists at {:?}",
-            photoset_path
-        );
-        return Err(Status::Conflict);
-    }
+    let photoset_path = resolve_photoset_path(&path)?;
 
     fs_helpers::create_dir(&photoset_path).await?;
 
@@ -76,14 +70,7 @@ pub async fn create_photoset(path: PathBuf) -> Result<Status, Status> {
 pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>) -> Result<Status, Status> {
     info!("Updating PhotoSet at {}", path.display());
 
-    let root = Path::new(
-        SERVE_PATH
-            .get()
-            .ok_or(Status::InternalServerError)?
-    );
-
-    let photoset_path = root
-        .join(&path)
+    let photoset_path = resolve_photoset_path(&path)?
         .canonicalize()
         .map_err(|_| Status::NotFound)?;
 
@@ -94,4 +81,24 @@ pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>) -> R
     fs_helpers::rename_entry(&photoset_path, &new_path).await?;
 
     Ok(Status::Accepted)
+}
+
+#[put("/<path..>", data = "<data>")]
+pub async fn put_photoset(path: PathBuf, data: Data<'_>) -> Result<(), Status> {
+    let target_path = resolve_photoset_path(&path)?;
+
+    if target_path.exists() {
+        error!("Target file already exists. target_path={}", target_path.display());
+        return Err(Status::Conflict);
+    }
+
+    target_path
+        .parent()
+        .ok_or(Status::BadRequest)?
+        .canonicalize()
+        .map_err(|_| Status::NotFound)?;
+
+    fs_helpers::save_data(data, &target_path).await?;
+
+    Ok(())
 }

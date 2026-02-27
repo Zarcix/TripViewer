@@ -10,6 +10,7 @@ mod constants;
 mod tasks;
 
 use crate::constants::server_constants::{
+    STAGING_PATH,
     SERVE_PATH,
     API_KEY,
 };
@@ -31,6 +32,10 @@ struct Args {
     /// Server Photo Archive Path
     #[arg(long)]
     archive_path: String,
+
+    /// Path where uploaded files will be initially uploaded to. 
+    #[arg(long)]
+    staging_path: String,
 }
 
 fn setup() -> Result<(), String> {
@@ -38,6 +43,7 @@ fn setup() -> Result<(), String> {
 
     API_KEY.set(args.api_key)?; 
     SERVE_PATH.set(args.archive_path)?;
+    STAGING_PATH.set(args.staging_path)?;
 
     Ok(())
 }
@@ -86,8 +92,8 @@ fn run_server() -> _ {
         .attach(CORS)
         .mount("/", routes![all_options])
         .mount("/", rocket::fs::FileServer::from(rocket::fs::relative!("frontend")))
-        .mount("/api/photoset", consolidated_api::route_list())
+        .mount("/photoset", consolidated_api::route_list())
         // .mount("/api/photoset", photoset_api::api_routes::route_list())
         // .mount("/api/photo", photo_api::api_routes::route_list())
-        .mount(format!("/{}/photos", API_KEY.get().unwrap()), file_server::api_routes())
+        // .mount(format!("/{}/photos", API_KEY.get().unwrap()), file_server::api_routes())
 }

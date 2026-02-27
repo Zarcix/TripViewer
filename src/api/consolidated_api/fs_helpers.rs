@@ -1,9 +1,14 @@
 use std::path::{Path, PathBuf};
-use rocket::tokio;
+use rocket::data::{DataStream, ToByteUnit};
+use rocket::tokio::io::AsyncWriteExt;
+use rocket::{Data, tokio};
 
 use rocket::{fs::NamedFile, http::Status, serde::json::Json};
 
 use crate::api::consolidated_api::models::StreamedFile;
+use crate::constants::server_constants::{
+    STAGING_NAME, STAGING_PATH, UPLOAD_LIMIT_MB
+};
 
 use super::models::{FileServerResponse, DirectoryEntry, DirectoryListing};
 
@@ -87,4 +92,54 @@ pub async fn rename_entry(old_path: &PathBuf, new_path: &PathBuf) -> Result<(), 
         );
         Status::InternalServerError
     })
+}
+
+pub async fn save_data(data: Data<'_>, target_path: &PathBuf) -> Result<(), Status> {
+    // Create temp pathing
+    let mut staging_path = PathBuf::new();
+    staging_path.push(&STAGING_PATH
+        .get()
+        .ok_or_else(|| {
+            error!("Could not get staging path value. staging_path={}", staging_path.display());
+            Status::InternalServerError
+        })?
+    );
+    // Parent folder must exist
+    staging_path.canonicalize().map_err(|e| {
+        error!("Could not canonicalize staging path. staging_path={}, error={}", staging_path.display(), e);
+        Status::InternalServerError
+    })?;
+    staging_path.push(&STAGING_NAME);
+
+    // Upload File to Temp Folder and check for errors
+    let mut upload_file = tokio::fs::File::create(&staging_path)
+        .await
+        .map_err(|e| {
+            error!("Could not create staging file. error={}", e);
+            Status::InternalServerError
+        })?;
+
+    let mut stream = data.open(UPLOAD_LIMIT_MB.mebibytes());
+
+    if let Err(e) = tokio::io::copy(&mut stream, &mut upload_file).await {
+        let _ = tokio::fs::remove_file(&staging_path).await;
+        error!("Failed to copy stream to upload file path. {}", e);
+        return Err(Status::PayloadTooLarge);
+    }
+
+    if let Err(_) = upload_file.flush().await {
+        let _ = tokio::fs::remove_file(&staging_path).await;
+        return Err(Status::InternalServerError);
+    }
+
+    drop(upload_file);
+
+    // After check is done, move file to target path
+    if let Err(_) = tokio::fs::rename(&staging_path, &target_path).await {
+        let _ = tokio::fs::remove_file(&staging_path).await;
+        let _ = tokio::fs::remove_file(&target_path).await;
+        return Err(Status::InternalServerError);
+    }
+
+    Ok(())
 }
