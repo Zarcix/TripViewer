@@ -3,9 +3,11 @@ use rocket::request::{FromRequest, Outcome, Request};
 
 use crate::constants::server_constants::API_KEY;
 
+
 #[allow(dead_code)]
 pub struct UserAuth<'r>(&'r str);
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum UserAuthError {
     Missing,

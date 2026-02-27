@@ -13,5 +13,6 @@ pub fn route_list() -> Vec<Route> {
         api::create_photoset,
         api::update_photoset,
         api::put_photoset,
+        api::delete_photoset,
     ]
 }

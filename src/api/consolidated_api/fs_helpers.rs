@@ -84,6 +84,11 @@ pub async fn create_dir(photoset_path: &PathBuf) -> Result<(), Status>{
 }
 
 pub async fn rename_entry(old_path: &PathBuf, new_path: &PathBuf) -> Result<(), Status> {
+    if tokio::fs::metadata(&new_path).await.is_ok() {
+        error!("New path exists. old_path={}, new_path={}", old_path.display(), new_path.display());
+        return Err(Status::Conflict);
+    }
+
     tokio::fs::rename(old_path, new_path).await.map_err(|e| {
         error!("Failed to rename {} to {}, {}",
             old_path.display(),
@@ -95,6 +100,13 @@ pub async fn rename_entry(old_path: &PathBuf, new_path: &PathBuf) -> Result<(), 
 }
 
 pub async fn save_data(data: Data<'_>, target_path: &PathBuf) -> Result<(), Status> {
+    // Validation
+
+    if tokio::fs::metadata(target_path).await.is_ok() {
+        error!("Target file already exists. target_path={}", target_path.display());
+        return Err(Status::Conflict);
+    }
+
     // Create temp pathing
     let mut staging_path = PathBuf::new();
     staging_path.push(&STAGING_PATH
@@ -142,4 +154,35 @@ pub async fn save_data(data: Data<'_>, target_path: &PathBuf) -> Result<(), Stat
     }
 
     Ok(())
+}
+
+pub async fn remove_photoset_dir(target_dir: &PathBuf, forced: bool) -> Result<(), Status> {
+    let error_handler = |e: tokio::io::Error| {
+        error!("Failed to remove photoset directory. target_dir={}, forced={}, error={}", target_dir.display(), forced, e);
+        match e.kind() {
+            std::io::ErrorKind::DirectoryNotEmpty => Status::Conflict,
+            std::io::ErrorKind::NotFound => Status::NotFound,
+            std::io::ErrorKind::PermissionDenied => Status::Forbidden,
+            _ => Status::InternalServerError,
+        }
+    };
+
+    if forced {
+        tokio::fs::remove_dir_all(&target_dir).await.map_err(error_handler)
+    } else {
+        tokio::fs::remove_dir(&target_dir).await.map_err(error_handler)
+    }
+}
+
+pub async fn remove_photoset_file(target_file: &PathBuf) -> Result<(), Status> {
+    tokio::fs::remove_file(target_file).await.map_err(|e| {
+        error!("Failed to remove photoset file. target_dir={}, error={}", target_file.display(), e);
+        match e.kind() {
+            std::io::ErrorKind::NotFound => Status::NotFound,
+            std::io::ErrorKind::PermissionDenied => Status::Forbidden,
+            std::io::ErrorKind::IsADirectory => Status::BadRequest,
+            std::io::ErrorKind::InvalidInput => Status::BadRequest,
+            _ => Status::InternalServerError,
+        }
+    })
 }

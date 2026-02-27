@@ -70,13 +70,38 @@ pub async fn create_photoset(path: PathBuf) -> Result<Status, Status> {
 pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>) -> Result<Status, Status> {
     info!("Updating PhotoSet at {}", path.display());
 
+    // Incoming Path Validation //
+    let root = Path::new(
+        SERVE_PATH
+            .get()
+            .ok_or(Status::InternalServerError)?
+    );
+
     let photoset_path = resolve_photoset_path(&path)?
         .canonicalize()
         .map_err(|_| Status::NotFound)?;
 
-    let new_path = photoset_path.parent()
-        .ok_or(Status::InternalServerError)?
-        .join(&form.new_name);
+    if !photoset_path.starts_with(root) {
+        error!("Invalid PhotoSet Path: photoset_path={}", photoset_path.display());
+        return Err(Status::Forbidden);
+    }
+
+    // Form Validation //
+    let new_name = form.new_name.trim();
+
+    if new_name.is_empty() {
+        return Err(Status::BadRequest);
+    }
+
+    let parent = photoset_path
+        .parent()
+        .ok_or(Status::InternalServerError)?;
+    let new_path = parent.join(new_name);
+
+    // New Path Validation //
+    if !new_path.starts_with(&root) {
+        return Err(Status::Forbidden);
+    }
 
     fs_helpers::rename_entry(&photoset_path, &new_path).await?;
 
@@ -84,13 +109,8 @@ pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>) -> R
 }
 
 #[put("/<path..>", data = "<data>")]
-pub async fn put_photoset(path: PathBuf, data: Data<'_>) -> Result<(), Status> {
+pub async fn put_photoset(path: PathBuf, data: Data<'_>) -> Result<Status, Status> {
     let target_path = resolve_photoset_path(&path)?;
-
-    if target_path.exists() {
-        error!("Target file already exists. target_path={}", target_path.display());
-        return Err(Status::Conflict);
-    }
 
     target_path
         .parent()
@@ -100,5 +120,24 @@ pub async fn put_photoset(path: PathBuf, data: Data<'_>) -> Result<(), Status> {
 
     fs_helpers::save_data(data, &target_path).await?;
 
-    Ok(())
+    Ok(Status::Created)
+}
+
+#[delete("/<path..>?<force_removal>")]
+pub async fn delete_photoset(path: PathBuf, force_removal: bool) -> Result<Status, Status> {
+    let target_path = resolve_photoset_path(&path)?
+        .canonicalize()
+        .map_err(|_| Status::NotFound)?;
+
+    if target_path.is_dir() {
+        fs_helpers::remove_photoset_dir(&target_path, force_removal).await?;
+        return Ok(Status::NoContent);
+    }
+
+    if target_path.is_file() {
+        fs_helpers::remove_photoset_file(&target_path).await?;
+        return Ok(Status::NoContent);
+    }
+
+    Err(Status::BadRequest)
 }
