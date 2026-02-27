@@ -88,5 +88,5 @@ fn run_server() -> _ {
         .attach(CORS)
         .mount("/", routes![all_options])
         .mount("/", rocket::fs::FileServer::from(rocket::fs::relative!("frontend")))
-        .mount("/photoset", photoset::route_list())
+        .mount("/api/photoset", photoset::route_list())
 }
