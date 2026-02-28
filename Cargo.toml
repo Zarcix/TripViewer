@@ -27,3 +27,9 @@ version = "0.2.3"
 [dependencies.clap]
 version = "4.5.60"
 features = ["derive"]
+
+[dev-dependencies.mockall]
+version = "0.14"
+
+[dev-dependencies.ctor]
+version = "0.6.3"

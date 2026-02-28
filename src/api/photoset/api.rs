@@ -1,6 +1,5 @@
 use std::path::{
-    Path,
-    PathBuf
+    Component, Path, PathBuf
 };
 
 use rocket::Data;
@@ -23,21 +22,22 @@ fn resolve_photoset_path(short_path: &PathBuf) -> Result<PathBuf, Status> {
             .ok_or(Status::InternalServerError)?
     );
 
-    let photoset_path = root.join(short_path);
-
-    // Prevent path traversal
-    if !photoset_path.starts_with(root) {
-        error!(
-            "Illegal Paths. photoset_path={}, root={}",
-            photoset_path.display(),
-            root.display()
-        );
+    // Reject absolute paths immediately
+    if short_path.is_absolute() {
         return Err(Status::Forbidden);
     }
 
-    return Ok(photoset_path);
-}
+    // Reject traversal components
+    for component in short_path.components() {
+        match component {
+            Component::ParentDir => return Err(Status::Forbidden),
+            Component::RootDir => return Err(Status::Forbidden),
+            _ => {}
+        }
+    }
 
+    Ok(root.join(short_path))
+}
 #[get("/<path..>")]
 pub async fn list_photoset(path: PathBuf, _auth: UserAuth<'_>) -> Result<FileServerResponse, Status> {
     info!("Listing PhotoSets at {}", path.display());
@@ -141,4 +141,127 @@ pub async fn delete_photoset(path: PathBuf, force_removal: bool, _auth: UserAuth
     }
 
     Err(Status::BadRequest)
+}
+
+#[cfg(test)]
+mod test_photopath_resolution {
+    use std::sync::OnceLock;
+
+    use ctor::{ctor, dtor};
+
+    use super::*;
+
+    const TEST_ROOT: &'static str = "root_photoset";
+    const VALID_PHOTOSET: &'static str = "child_photoset";
+
+    const INVALID_PHOTOSET_RELATIVE_BACK: &'static str = "../child_photoset";
+
+    #[ctor]
+    fn setup() {
+        SERVE_PATH.set(TEST_ROOT.to_string()).unwrap();
+    }
+
+    #[dtor]
+    fn teardown() {
+        unsafe {
+            let ptr = &SERVE_PATH as *const _ as *mut OnceLock<String>;
+            (*ptr).take();
+        }
+    }
+
+    #[test]
+    fn valid_photopath() {
+        let mut test_path = PathBuf::new();
+        test_path.push(VALID_PHOTOSET);
+
+        let full_path = resolve_photoset_path(&test_path);
+
+        assert!(full_path.is_ok());
+        assert!(full_path.unwrap().to_str().unwrap() == format!("{}/{}", TEST_ROOT, VALID_PHOTOSET));
+    }
+
+    #[test]
+    fn valid_empty_photopath() {
+        let test_path = PathBuf::new();
+
+        let full_path = resolve_photoset_path(&test_path);
+
+        assert!(full_path.is_ok());
+        assert!(full_path.unwrap().to_str().unwrap() == format!("{}/", TEST_ROOT));
+    }
+
+    #[test]
+    fn valid_nested_path() {
+        let test_path = PathBuf::from("a/b/c");
+
+        let full_path = resolve_photoset_path(&test_path).unwrap();
+
+        let expected = PathBuf::from(TEST_ROOT).join("a/b/c");
+
+        assert_eq!(full_path, expected);
+    }
+
+    #[test]
+    fn valid_path_with_curdir() {
+        let test_path = PathBuf::from("./child_photoset");
+
+        let full_path = resolve_photoset_path(&test_path).unwrap();
+
+        let expected = PathBuf::from(TEST_ROOT).join("child_photoset");
+
+        assert_eq!(full_path, expected);
+    }
+
+    #[test]
+    fn invalid_photopath_relative_back() {
+        let mut test_path = PathBuf::new();
+        test_path.push(INVALID_PHOTOSET_RELATIVE_BACK);
+
+        let full_path = resolve_photoset_path(&test_path);
+
+        assert!(full_path.is_err());
+        assert_eq!(full_path.err().unwrap(), Status::Forbidden);
+    }
+
+    #[test]
+    fn invalid_photopath_absolute() {
+        let test_path = PathBuf::from("/etc/passwd");
+
+        let full_path = resolve_photoset_path(&test_path);
+
+        assert!(full_path.is_err());
+        assert_eq!(full_path.unwrap_err(), Status::Forbidden);
+    }
+
+    #[test]
+    fn invalid_photopath_nested_traversal() {
+        let test_path = PathBuf::from("a/b/../../c");
+
+        let full_path = resolve_photoset_path(&test_path);
+
+        assert!(full_path.is_err());
+        assert_eq!(full_path.unwrap_err(), Status::Forbidden);
+    }
+
+    #[test]
+    fn invalid_photopath_prefix_traversal() {
+        let test_path = PathBuf::from("../");
+
+        let full_path = resolve_photoset_path(&test_path);
+
+        assert!(full_path.is_err());
+        assert_eq!(full_path.unwrap_err(), Status::Forbidden);
+    }
+
+    #[test]
+    fn invalid_photopath_rootdir_component() {
+        // On Unix this produces a RootDir component.
+        // On Windows this also produces RootDir (without Prefix).
+        let test_path = PathBuf::from("/child_photoset");
+
+        let full_path = resolve_photoset_path(&test_path);
+
+        assert!(full_path.is_err());
+        assert_eq!(full_path.unwrap_err(), Status::Forbidden);
+    }
 }
