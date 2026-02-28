@@ -144,114 +144,275 @@ pub async fn delete_photoset(path: PathBuf, force_removal: bool, _auth: UserAuth
 }
 
 #[cfg(test)]
-mod test_photopath_resolution {
+mod test_endpoints {
     use ctor::ctor;
+
+    use crate::constants::server_constants::STAGING_PATH;
 
     use super::*;
 
-    const TEST_ROOT: &'static str = "src/test";
-    const VALID_PHOTOSET: &'static str = "child_photoset";
+    const TEST_ROOT: &'static str = "/home/personal/Projects/TripViewer/src/test/TestPhotoSet";
 
-    const INVALID_PHOTOSET_RELATIVE_BACK: &'static str = "../child_photoset";
+    const PHOTOSET_1: (&'static str, &'static str) = ("Set1", "Globe Spin Test.mp4");
+    const PHOTOSET_2: (&'static str, &'static str) = ("Set2", "42502671.png");
+
+    const INVALID_PHOTOSET_RELATIVE_BACK: &'static str = "../Set1";
 
     #[ctor]
     fn setup() {
-        SERVE_PATH.get_or_init(|| String::from("src/test/"));
+        SERVE_PATH.get_or_init(|| String::from(TEST_ROOT));
+        STAGING_PATH.get_or_init(|| String::from("/tmp"));
     }
 
-    #[test]
-    fn valid_photopath() {
-        let mut test_path = PathBuf::new();
-        test_path.push(VALID_PHOTOSET);
+    mod photopaths {
+        use super::*;
 
-        let full_path = resolve_photoset_path(&test_path);
+        #[test]
+        fn valid_photopath() {
+            let mut test_path = PathBuf::new();
+            test_path.push(PHOTOSET_2.0);
 
-        assert!(full_path.is_ok());
-        assert!(full_path.unwrap().to_str().unwrap() == format!("{}/{}", TEST_ROOT, VALID_PHOTOSET));
+            let full_path = resolve_photoset_path(&test_path);
+
+            assert!(full_path.is_ok());
+            assert!(full_path.unwrap().to_str().unwrap() == format!("{}/{}", TEST_ROOT, PHOTOSET_2.0));
+        }
+
+        #[test]
+        fn valid_empty_photopath() {
+            let test_path = PathBuf::new();
+
+            let full_path = resolve_photoset_path(&test_path);
+
+            assert!(full_path.is_ok());
+            assert!(full_path.unwrap().to_str().unwrap() == format!("{}/", TEST_ROOT));
+        }
+
+        #[test]
+        fn valid_nested_path() {
+            let test_path = PathBuf::from("a/b/c");
+
+            let full_path = resolve_photoset_path(&test_path).unwrap();
+
+            let expected = PathBuf::from(TEST_ROOT).join("a/b/c");
+
+            assert_eq!(full_path, expected);
+        }
+
+        #[test]
+        fn valid_path_with_curdir() {
+            let test_path = PathBuf::from("./child_photoset");
+
+            let full_path = resolve_photoset_path(&test_path).unwrap();
+
+            let expected = PathBuf::from(TEST_ROOT).join("child_photoset");
+
+            assert_eq!(full_path, expected);
+        }
+
+        #[test]
+        fn invalid_photopath_relative_back() {
+            let mut test_path = PathBuf::new();
+            test_path.push(INVALID_PHOTOSET_RELATIVE_BACK);
+
+            let full_path = resolve_photoset_path(&test_path);
+
+            assert!(full_path.is_err());
+            assert_eq!(full_path.err().unwrap(), Status::Forbidden);
+        }
+
+        #[test]
+        fn invalid_photopath_absolute() {
+            let test_path = PathBuf::from("/etc/passwd");
+
+            let full_path = resolve_photoset_path(&test_path);
+
+            assert!(full_path.is_err());
+            assert_eq!(full_path.unwrap_err(), Status::Forbidden);
+        }
+
+        #[test]
+        fn invalid_photopath_nested_traversal() {
+            let test_path = PathBuf::from("a/b/../../c");
+
+            let full_path = resolve_photoset_path(&test_path);
+
+            assert!(full_path.is_err());
+            assert_eq!(full_path.unwrap_err(), Status::Forbidden);
+        }
+
+        #[test]
+        fn invalid_photopath_prefix_traversal() {
+            let test_path = PathBuf::from("../");
+
+            let full_path = resolve_photoset_path(&test_path);
+
+            assert!(full_path.is_err());
+            assert_eq!(full_path.unwrap_err(), Status::Forbidden);
+        }
+
+        #[test]
+        fn invalid_photopath_rootdir_component() {
+            // On Unix this produces a RootDir component.
+            // On Windows this also produces RootDir (without Prefix).
+            let test_path = PathBuf::from("/child_photoset");
+
+            let full_path = resolve_photoset_path(&test_path);
+
+            assert!(full_path.is_err());
+            assert_eq!(full_path.unwrap_err(), Status::Forbidden);
+        }
+
     }
 
-    #[test]
-    fn valid_empty_photopath() {
-        let test_path = PathBuf::new();
+    mod apis {
+        use super::*;
+        use rocket::tokio;
 
-        let full_path = resolve_photoset_path(&test_path);
+        mod list_photoset {
 
-        assert!(full_path.is_ok());
-        assert!(full_path.unwrap().to_str().unwrap() == format!("{}/", TEST_ROOT));
-    }
+            use std::collections::HashSet;
 
-    #[test]
-    fn valid_nested_path() {
-        let test_path = PathBuf::from("a/b/c");
+            use crate::api::photoset::models::DirectoryEntry;
 
-        let full_path = resolve_photoset_path(&test_path).unwrap();
+            use super::*;
 
-        let expected = PathBuf::from(TEST_ROOT).join("a/b/c");
+            #[tokio::test]
+            async fn test_list_parent_photoset() {
+                let auth = UserAuth("");
+                let path = PathBuf::new();
 
-        assert_eq!(full_path, expected);
-    }
+                let mut acting_dir = Path::new(SERVE_PATH.get().unwrap()).to_path_buf();
+                acting_dir.push(&path);
 
-    #[test]
-    fn valid_path_with_curdir() {
-        let test_path = PathBuf::from("./child_photoset");
+                let res = list_photoset(path, auth).await;
+                assert!(res.is_ok());
 
-        let full_path = resolve_photoset_path(&test_path).unwrap();
+                let fs_response: FileServerResponse = res.unwrap();
+                
+                let listing = match fs_response {
+                    FileServerResponse::DirectoryListing(listing) => listing,
+                    other => panic!("Expected DirectoryListing, got {:?}", other),
+                };
 
-        let expected = PathBuf::from(TEST_ROOT).join("child_photoset");
+                // Collect actual filesystem entries
+                let mut actual_entries = Vec::new();
 
-        assert_eq!(full_path, expected);
-    }
+                let mut dir = tokio::fs::read_dir(&acting_dir).await.unwrap();
+                while let Some(entry) = dir.next_entry().await.unwrap() {
+                    let metadata = entry.metadata().await.unwrap();
 
-    #[test]
-    fn invalid_photopath_relative_back() {
-        let mut test_path = PathBuf::new();
-        test_path.push(INVALID_PHOTOSET_RELATIVE_BACK);
+                    actual_entries.push(DirectoryEntry {
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        is_dir: metadata.is_dir(),
+                    });
+                }
 
-        let full_path = resolve_photoset_path(&test_path);
+                // Convert both sides into sets (order independent comparison)
+                let actual: HashSet<_> = actual_entries.into_iter().collect();
+                let expected: HashSet<_> = listing.entries.clone().into_iter().collect();
 
-        assert!(full_path.is_err());
-        assert_eq!(full_path.err().unwrap(), Status::Forbidden);
-    }
+                assert_eq!(actual, expected);
+            }
 
-    #[test]
-    fn invalid_photopath_absolute() {
-        let test_path = PathBuf::from("/etc/passwd");
+            #[tokio::test]
+            async fn test_list_child_photoset() {
+                let auth = UserAuth("");
+                let mut path = PathBuf::new();
+                path.push(PHOTOSET_2.0);
 
-        let full_path = resolve_photoset_path(&test_path);
+                let mut acting_dir = Path::new(SERVE_PATH.get().unwrap()).to_path_buf();
+                acting_dir.push(&path);
 
-        assert!(full_path.is_err());
-        assert_eq!(full_path.unwrap_err(), Status::Forbidden);
-    }
+                let res = list_photoset(path, auth).await;
+                assert!(res.is_ok());
 
-    #[test]
-    fn invalid_photopath_nested_traversal() {
-        let test_path = PathBuf::from("a/b/../../c");
+                let fs_response: FileServerResponse = res.unwrap();
+                
+                let listing = match fs_response {
+                    FileServerResponse::DirectoryListing(listing) => listing,
+                    other => panic!("Expected DirectoryListing, got {:?}", other),
+                };
 
-        let full_path = resolve_photoset_path(&test_path);
+                // Collect actual filesystem entries
+                let mut actual_entries = Vec::new();
 
-        assert!(full_path.is_err());
-        assert_eq!(full_path.unwrap_err(), Status::Forbidden);
-    }
+                let mut dir = tokio::fs::read_dir(&acting_dir).await.unwrap();
+                while let Some(entry) = dir.next_entry().await.unwrap() {
+                    let metadata = entry.metadata().await.unwrap();
 
-    #[test]
-    fn invalid_photopath_prefix_traversal() {
-        let test_path = PathBuf::from("../");
+                    actual_entries.push(DirectoryEntry {
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        is_dir: metadata.is_dir(),
+                    });
+                }
 
-        let full_path = resolve_photoset_path(&test_path);
+                // Convert both sides into sets (order independent comparison)
+                let actual: HashSet<_> = actual_entries.into_iter().collect();
+                let expected: HashSet<_> = listing.entries.clone().into_iter().collect();
 
-        assert!(full_path.is_err());
-        assert_eq!(full_path.unwrap_err(), Status::Forbidden);
-    }
+                assert_eq!(actual, expected);
+            }
 
-    #[test]
-    fn invalid_photopath_rootdir_component() {
-        // On Unix this produces a RootDir component.
-        // On Windows this also produces RootDir (without Prefix).
-        let test_path = PathBuf::from("/child_photoset");
+            #[tokio::test]
+            async fn test_list_file_in_photoset() {
+                let auth = UserAuth("");
+                let mut path = PathBuf::new();
+                path.push(PHOTOSET_2.0);
+                path.push(PHOTOSET_2.1);
 
-        let full_path = resolve_photoset_path(&test_path);
+                let mut acting_dir = Path::new(SERVE_PATH.get().unwrap()).to_path_buf();
+                acting_dir.push(&path);
 
-        assert!(full_path.is_err());
-        assert_eq!(full_path.unwrap_err(), Status::Forbidden);
+                let res = list_photoset(path, auth).await;
+                assert!(res.is_ok());
+
+                let fs_response: FileServerResponse = res.unwrap();
+                
+                let listing = match fs_response {
+                    FileServerResponse::FullContent(listing) => listing,
+                    other => panic!("Expected FullContent, got {:?}", other),
+                };
+
+                assert_eq!(acting_dir.canonicalize().unwrap(), listing.path().to_path_buf());
+            }
+
+            #[tokio::test]
+            async fn test_list_video_in_photoset() {
+                let auth = UserAuth("");
+                let mut path = PathBuf::new();
+                path.push(PHOTOSET_1.0);
+                path.push(PHOTOSET_1.1);
+
+                let mut acting_dir = Path::new(SERVE_PATH.get().unwrap()).to_path_buf();
+                acting_dir.push(&path);
+
+                let res = list_photoset(path, auth).await;
+                assert!(res.is_ok());
+
+                let fs_response: FileServerResponse = res.unwrap();
+                
+                let listing = match fs_response {
+                    FileServerResponse::RangedContent(listing) => listing,
+                    other => panic!("Expected RangedContent, got {:?}", other),
+                };
+
+                assert_eq!(acting_dir.canonicalize().unwrap(), listing.file.to_path_buf());
+            }
+
+            #[tokio::test]
+            async fn test_invalid_file_in_photoset() {
+                let auth = UserAuth("");
+                let mut path = PathBuf::new();
+                path.push(PHOTOSET_1.0);
+                path.push("Globe Spin Test.png");
+
+                let mut acting_dir = Path::new(SERVE_PATH.get().unwrap()).to_path_buf();
+                acting_dir.push(&path);
+
+                let res = list_photoset(path, auth).await;
+                assert!(res.is_err());
+            }
+        }
     }
 }

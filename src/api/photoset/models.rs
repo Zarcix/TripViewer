@@ -14,20 +14,21 @@ pub struct StreamedFile {
     pub file: PathBuf
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(crate = "rocket::serde")]
 pub struct DirectoryEntry {
     pub name: String,
     pub is_dir: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(crate = "rocket::serde")]
 pub struct DirectoryListing {
     pub path: String,
     pub entries: Vec<DirectoryEntry>
 }
 
+#[derive(Debug)]
 pub enum FileServerResponse {
     FullContent(NamedFile),
     RangedContent(StreamedFile),

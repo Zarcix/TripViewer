@@ -5,7 +5,7 @@ use crate::constants::server_constants::API_KEY;
 
 
 #[allow(dead_code)]
-pub struct UserAuth<'r>(&'r str);
+pub struct UserAuth<'r>(pub &'r str);
 
 #[allow(dead_code)]
 #[derive(Debug)]
