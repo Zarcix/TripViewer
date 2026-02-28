@@ -145,28 +145,18 @@ pub async fn delete_photoset(path: PathBuf, force_removal: bool, _auth: UserAuth
 
 #[cfg(test)]
 mod test_photopath_resolution {
-    use std::sync::OnceLock;
-
-    use ctor::{ctor, dtor};
+    use ctor::ctor;
 
     use super::*;
 
-    const TEST_ROOT: &'static str = "root_photoset";
+    const TEST_ROOT: &'static str = "src/test";
     const VALID_PHOTOSET: &'static str = "child_photoset";
 
     const INVALID_PHOTOSET_RELATIVE_BACK: &'static str = "../child_photoset";
 
     #[ctor]
     fn setup() {
-        SERVE_PATH.set(TEST_ROOT.to_string()).unwrap();
-    }
-
-    #[dtor]
-    fn teardown() {
-        unsafe {
-            let ptr = &SERVE_PATH as *const _ as *mut OnceLock<String>;
-            (*ptr).take();
-        }
+        SERVE_PATH.get_or_init(|| String::from("src/test/"));
     }
 
     #[test]
