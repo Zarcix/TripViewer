@@ -147,7 +147,10 @@ pub async fn delete_photoset(path: PathBuf, force_removal: bool, _auth: UserAuth
 mod test_endpoints {
     use ctor::ctor;
 
-    use crate::constants::server_constants::STAGING_PATH;
+    use crate::constants::server_constants::{
+        STAGING_PATH,
+        API_KEY
+    };
 
     use super::*;
 
@@ -166,6 +169,7 @@ mod test_endpoints {
     fn setup() {
         SERVE_PATH.get_or_init(|| String::from(TEST_ROOT));
         STAGING_PATH.get_or_init(|| String::from("/tmp"));
+        API_KEY.get_or_init(|| String::from("test"));
     }
 
     mod photopaths {
@@ -273,7 +277,7 @@ mod test_endpoints {
         use super::*;
         use rocket::tokio;
 
-        mod list_photoset {
+        mod test_list_photoset {
 
             use std::collections::HashSet;
 
@@ -419,7 +423,7 @@ mod test_endpoints {
             }
         }
 
-        mod create_photoset {
+        mod test_create_photoset {
             use super::*;
             use rocket::tokio;
 
@@ -461,7 +465,7 @@ mod test_endpoints {
             }
         }
 
-        mod update_photoset {
+        mod test_update_photoset {
             use super::*;
 
             async fn setup() {
@@ -540,11 +544,96 @@ mod test_endpoints {
             }
         }
 
-        mod put_photoset {
+        mod test_put_photoset {
+            use rocket::local::asynchronous::Client;
 
+            use super::*;
+
+            async fn setup() -> Client {
+                let path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let _ = create_photoset(path.clone(), UserAuth("")).await.unwrap();
+
+
+                let rocket = rocket::build()
+                    .mount("/", routes![list_photoset, put_photoset]);
+
+                Client::tracked(rocket).await.unwrap()
+            }
+
+            async fn teardown() {
+                let photoset_path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let full_path = resolve_photoset_path(&photoset_path).unwrap();
+                std::fs::remove_dir_all(full_path).unwrap();
+            }
+
+            #[tokio::test]
+            async fn put_valid_file_into_photoset() {
+                let client=  setup().await;
+
+                let bytes = b"test payload".to_vec();
+                let res = client
+                    .put(format!("/{}/{}", PHOTOSET_3.0, PHOTOSET_3.1))
+                    .cookie(("auth", "test"))
+                    .body(bytes.as_slice())
+                    .dispatch()
+                    .await;
+                assert!(res.status() == Status::Created);
+
+                let photoset_path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let mut full_path = resolve_photoset_path(&photoset_path).unwrap();
+                full_path.push(PHOTOSET_3.1);
+                assert!(full_path.exists());
+
+                teardown().await;
+            }
+
+            #[tokio::test]
+            async fn put_existing_file_into_photoset() {
+                let client=  setup().await;
+                let path = format!("/{}/{}", PHOTOSET_2.0, PHOTOSET_2.1);
+
+                let bytes = b"test payload".to_vec();
+                let res = client
+                    .put(&path)
+                    .cookie(("auth", "test"))
+                    .body(bytes.as_slice())
+                    .dispatch()
+                    .await;
+                assert!(res.status() == Status::Conflict);
+
+
+                // Now GET the existing file
+                let get_res = client
+                    .get(&path)
+                    .cookie(("auth", "test"))
+                    .dispatch()
+                    .await;
+
+                assert_eq!(get_res.status(), Status::Ok);
+
+                let existing_bytes = get_res.into_bytes().await.unwrap();
+
+                // Ensure original file was not overwritten
+                assert_ne!(existing_bytes, bytes);
+            }
+
+            #[tokio::test]
+            async fn put_too_big_file_into_photoset() {
+                let client=  setup().await;
+                let path = format!("/{}/{}", PHOTOSET_3.0, PHOTOSET_3.1);
+
+                let bytes = vec![0u8; 1024 * 1024 + 1];
+                let res = client
+                    .put(&path)
+                    .cookie(("auth", "test"))
+                    .body(bytes.as_slice())
+                    .dispatch()
+                    .await;
+                assert!(res.status() == Status::PayloadTooLarge);
+            }
         }
 
-        mod delete_photoset {
+        mod test_delete_photoset {
             use super::*;
             static TEMP_FILE_NAME: &'static str = "tempfile";
 

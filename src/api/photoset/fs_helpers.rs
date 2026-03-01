@@ -131,11 +131,13 @@ pub async fn save_data(data: Data<'_>, target_path: &PathBuf) -> Result<(), Stat
             Status::InternalServerError
         })?;
 
-    let mut stream = data.open(UPLOAD_LIMIT_MB.mebibytes());
+    // Check Upload Size
+    let stream = data.open(UPLOAD_LIMIT_MB.mebibytes());
+    let stream_res = stream.stream_to(&mut upload_file).await.map_err(|_| Status::InternalServerError)?;
 
-    if let Err(e) = tokio::io::copy(&mut stream, &mut upload_file).await {
+    if !stream_res.complete {
         let _ = tokio::fs::remove_file(&staging_path).await;
-        error!("Failed to copy stream to upload file path. {}", e);
+        error!("Data stream too large to read.");
         return Err(Status::PayloadTooLarge);
     }
 
@@ -147,10 +149,16 @@ pub async fn save_data(data: Data<'_>, target_path: &PathBuf) -> Result<(), Stat
     drop(upload_file);
 
     // After check is done, move file to target path
-    if let Err(_) = tokio::fs::rename(&staging_path, &target_path).await {
+    if let Err(e) = tokio::fs::copy(&staging_path, &target_path).await {
         let _ = tokio::fs::remove_file(&staging_path).await;
         let _ = tokio::fs::remove_file(&target_path).await;
+        error!("Could not copy file {} to {}, error={}", staging_path.display(), target_path.display(), e);
         return Err(Status::InternalServerError);
+    }
+
+    if let Err(e) = tokio::fs::remove_file(&staging_path).await {
+        // No error return here since the copy was successful. This might have just left some artifacts
+        error!("Could not remove file {}, error={}", staging_path.display(), e);
     }
 
     Ok(())
