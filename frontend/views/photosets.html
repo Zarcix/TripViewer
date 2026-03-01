@@ -14,19 +14,16 @@
     <section id="photosetContainer" class="card">
         <div class="list-header">
             <div class="navigation-controls">
-                <button id="backBtn" class="secondary-btn">← Back</button>
                 <div class="path-display">
+                    <button id="backBtn" class="secondary-btn">Back</button>
                     <span class="label">Current Path:</span>
-                    <code id="photosetPath">/root/my-photos</code>
+                    <input type="text" id="photosetPath" value="/" />
+                    <button id="reloadBtn" class="secondary-btn">Reload</button>
                 </div>
             </div>
         </div>
 
         <div id="photosetList" class="grid">
-            <div class="placeholder-text">No photosets found in this directory.</div>
-        </div>
-
-        <div id="photosetPreview" hidden="true">
             <div class="placeholder-text">No photosets found in this directory.</div>
         </div>
     </section>

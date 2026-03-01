@@ -54,3 +54,52 @@ main {
     height: 100%;
     border: none;
 }
+
+/* ---------------- Current Path Styling ---------------- */
+.path-display {
+    background-color: #f0f0f0;   /* light grey background */
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    color: #333;                 /* darker text for contrast */
+    display: flex;
+    align-items: center;
+    margin-left: 10px;
+    font-size: 0.95rem;
+}
+
+.path-display input {
+    flex: 1;                     /* fill remaining space */
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.95rem;
+    color: #1a73e8;              /* bright blue text */
+    background-color: #fff;
+}
+
+.path-display input:focus {
+    outline: none;
+    border-color: #1a73e8;
+    box-shadow: 0 0 2px #1a73e8;
+}
+
+.photoset-entry {
+    display: flex;
+    flex-direction: column; /* stack name and buttons */
+    align-items: center;    /* horizontally center everything */
+    gap: 4px;
+    padding: 6px;
+    border-bottom: 1px solid #ccc;
+}
+
+.photoset-name {
+    font-weight: bold;
+    text-align: center; /* optional, for good measure */
+}
+
+.photoset-buttons {
+    display: flex;
+    gap: 8px; /* spacing between buttons */
+}

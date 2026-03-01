@@ -1,132 +1,111 @@
-import { request } from "../api.js";
-import { getServer, getToken } from "../localstorage.js";
+import { get_photosets, create_photoset, update_photoset, put_photoset, delete_photoset } from "../api.js";
 
-let currentPath = "";
 let historyStack = [];
+let currentDir = "/"; // root
 
-export async function initPhotoSets() {
-    // document.getElementById("createBtn").onclick = () => createPhotoSet();
-    document.getElementById("backBtn").onclick = () => navigateBack();
-    renderPhotoSets(currentPath);
+function pushToHistory(folderName) {
+    historyStack.push(folderName);
+    updateCurrentDir();
 }
 
+function popFromHistory() {
+    if (historyStack.length > 0) {
+        historyStack.pop();
+        updateCurrentDir();
+    }
+}
 
-async function renderPhotoSets(path) {
-    currentPath = path;
-    document.getElementById("photosetPath").textContent = "/" + path;
-    const server_ip = getServer();
-    const token = getToken();
-
-    // Get Photos
-    let list = [];
-    try {
-        const res = await request("GET", `/${token}/photos/PhotoSets/` + path);
-        list = await res.json();
-    } catch {
-        list = [];
+// Rebuild currentDir from historyStack
+function updateCurrentDir() {
+    if (historyStack.length === 0) {
+        currentDir = "/";
+    } else {
+        currentDir = "/" + historyStack.join("/");
     }
 
-    // Render Photos
-    const container = document.getElementById("photosetList");
-    let preview_cont = document.getElementById("photosetPreview");
-    preview_cont.hidden = true;
-    container.innerHTML = "";
-
-    if (list.length === 0) {
-        preview_cont.hidden = false;
-        preview_cont.innerHTML = `
-<iframe 
-    src="${server_ip}/${token}/photos/PhotoSets/${currentPath}"
-    class="embedded-photo-frame"
-    title="Photo Browser">
-</iframe>`;
-        return;
+    let photosetPath = document.getElementById("photosetPath");
+    if (photosetPath) {
+        photosetPath.value = currentDir;
     }
+}
 
-    list.forEach(name => {
-        const newPath = path ? `${path}/${name}` : name;
-        const card = document.createElement("div");
+export async function initPhotoSets() {
+    // Path Input
+    let photosetPath = document.getElementById("photosetPath");
+    photosetPath.value = currentDir;
+    photosetPath.addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
 
-        // --- Step 1: try image ---
-        const img = document.createElement("img");
-        img.src = `${server_ip}/${token}/photos/PhotoSets/${newPath}`;
-        img.width = 180;
-        img.style.objectFit = "cover";
-        img.style.marginBottom = "8px";
+            // Normalize input: remove leading/trailing slashes and split
+            const path = photosetPath.value.trim();
+            const parts = path.split("/").filter(Boolean); // remove empty parts
 
-        img.onload = () => {
-            // Loaded as image
-            const del = document.createElement("button");
-            del.textContent = "Delete";
-            del.style.marginTop = "4px";
-            del.onclick = () => deletePhoto(newPath);
+            // Reset history stack to reflect the input path
+            historyStack = [...parts];
 
-            card.appendChild(img);
-            card.appendChild(del);
-        };
+            updateCurrentDir();
 
-        img.onerror = () => {
-            // --- Step 2: try video ---
-            const video = document.createElement("video");
-            video.src = `${server_ip}/${token}/photos/PhotoSets/${newPath}`;
-            video.controls = true;
-            video.width = 180;
+            // Load the new photoset
+            loadPhotoset();
+        }
+    });
 
-            video.onloadeddata = () => {
-                // Loaded as video
-                const del = document.createElement("button");
-                del.textContent = "Delete";
-                del.style.marginTop = "4px";
-                del.onclick = () => deletePhoto(newPath);
+    // Back Button
+    let backButton = document.getElementById("backBtn");
+    backButton.onclick = () => navBack();
 
-                card.appendChild(video);
-                card.appendChild(del);
-            };
+    // Reload Button
+    let reloadButton = document.getElementById("reloadBtn");
+    reloadButton.onclick = async () => await loadPhotoset();
 
-            video.onerror = () => {
-                // --- Step 3: fallback to photoset ---
-                card.innerHTML = `
-                    <div class="photoset-name"><b>${name}</b></div>
-                    <div class="photoset-actions">
-                        <button class="openBtn">Open</button>
-                        <button class="renameBtn">Rename</button>
-                        <button class="deleteBtn">Delete</button>
-                    </div>
-                `;
-                card.querySelector(".openBtn").onclick = () => {
-                    historyStack.push(currentPath);
-                    renderPhotoSets(newPath);
-                };
-                card.querySelector(".renameBtn").onclick = () => renamePhotoSet(newPath);
-                card.querySelector(".deleteBtn").onclick = () => deletePhotoSet(newPath);
-            };
-        };
+    await loadPhotoset();
+}
 
-        container.appendChild(card);
+async function openPhotoset(name) {
+    pushToHistory(name);
+
+    // Load the new photoset
+    await loadPhotoset();
+}
+
+async function loadPhotoset() {
+    let photosets = await get_photosets(currentDir);
+    let entries = photosets.entries;
+
+    let photosetList = document.getElementById("photosetList");
+    photosetList.innerHTML = ""
+    entries.forEach(entry => {
+        const entryDiv = document.createElement('div');
+        entryDiv.classList.add('photoset-entry');
+
+        // Name on first line
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = entry.name;
+        nameSpan.classList.add('photoset-name');
+        entryDiv.appendChild(nameSpan);
+
+        // Buttons on second line
+        const buttonDiv = document.createElement('div');
+        buttonDiv.classList.add('photoset-buttons');
+
+        ['Open', 'Update', 'Delete'].forEach(action => {
+            const btn = document.createElement('button');
+            btn.textContent = action;
+            btn.addEventListener('click', async () => {
+                if (action === 'Open') await openPhotoset(entry.name);
+                if (action === 'Update') await updatePhotoset(entry.name);
+                if (action === 'Delete') await deletePhotoset(entry.name);
+            });
+            buttonDiv.appendChild(btn);
+        });
+
+        entryDiv.appendChild(buttonDiv);
+        photosetList.appendChild(entryDiv);
     });
 }
 
-async function renamePhotoSet(path) {
-    const newName = prompt("New Name:");
-    if (!newName) return;
-
-    const form = new FormData();
-    form.append("new_name", newName);
-
-    try {
-        const res = await request("PATCH", "/api/photoset/" + path, form, true);
-        if (!res.ok) alert("Rename failed");
-        else {
-            const parent = path.split("/").slice(0, -1).join("/");
-            renderPhotoSets(parent || "root");
-        }
-    } catch (e) {
-        alert("Rename failed: " + e.message);
-    }
-}
-
-function navigateBack() {
-    if (historyStack.length === 0) return;
-    const previous = historyStack.pop();
-    renderPhotoSets(previous);
+async function navBack() {
+    popFromHistory();
+    loadPhotoset();
 }
