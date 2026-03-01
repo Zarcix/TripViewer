@@ -151,10 +151,14 @@ mod test_endpoints {
 
     use super::*;
 
-    const TEST_ROOT: &'static str = "/home/personal/Projects/TripViewer/src/test/TestPhotoSet";
+    const TEST_ROOT: &'static str = "/home/personal/Containers/manjaroarm/home/alarm/TripViewer/src/test/TestPhotoSet";
 
+    // Existing PhotoSets
     const PHOTOSET_1: (&'static str, &'static str) = ("Set1", "Globe Spin Test.mp4");
     const PHOTOSET_2: (&'static str, &'static str) = ("Set2", "42502671.png");
+
+    // Photoset To Add
+    const PHOTOSET_3: (&'static str, &'static str) = ("Set3", "filetoadd.png");
 
     const INVALID_PHOTOSET_RELATIVE_BACK: &'static str = "../Set1";
 
@@ -412,6 +416,201 @@ mod test_endpoints {
 
                 let res = list_photoset(path, auth).await;
                 assert!(res.is_err());
+            }
+        }
+
+        mod create_photoset {
+            use super::*;
+            use rocket::tokio;
+
+            async fn teardown() {
+                let photoset_path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let full_path = resolve_photoset_path(&photoset_path).unwrap();
+                std::fs::remove_dir_all(full_path).unwrap();
+            }
+
+
+            #[tokio::test]
+            async fn test_create_photoset() {
+                let auth = UserAuth("");
+                let mut path = PathBuf::new();
+                path.push(PHOTOSET_3.0);
+
+                let res = create_photoset(path.clone(), auth).await;
+                assert!(res.is_ok());
+
+                let full_path = resolve_photoset_path(&path).unwrap();
+                assert!(full_path.exists());
+                teardown().await;
+            }
+
+            #[tokio::test]
+            async fn test_create_existing_photoset() {
+                let auth = UserAuth("");
+                let mut path = PathBuf::new();
+                path.push(PHOTOSET_2.0);
+
+
+                let res = create_photoset(path.clone(), auth).await;
+                assert!(res.is_ok());
+
+                // Check that photoset and elements in photoset exist
+                let mut full_path = resolve_photoset_path(&path).unwrap();
+                assert!(full_path.exists());
+                full_path.push(PHOTOSET_2.1);
+            }
+        }
+
+        mod update_photoset {
+            use super::*;
+
+            async fn setup() {
+                let auth = UserAuth("");
+                let path = Path::new(PHOTOSET_3.0).to_path_buf();
+
+                let _ = create_photoset(path.clone(), auth).await.unwrap();
+            }
+
+            async fn teardown() {
+                let photoset_path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let full_path = resolve_photoset_path(&photoset_path).unwrap();
+                std::fs::remove_dir_all(full_path).unwrap();
+            }
+
+            #[tokio::test]
+            async fn test_update_photoset() {
+                setup().await;
+
+                let path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let update_form = PhotoSetUpdateForm {
+                    new_name: "Test".to_string()
+                };
+                let to_test_res = update_photoset(path.clone(), update_form.into(), UserAuth("")).await;
+                assert!(to_test_res.is_ok());
+
+                
+                let full_path = resolve_photoset_path(&Path::new("Test").to_path_buf()).unwrap();
+                assert!(full_path.exists());
+
+
+                let path = Path::new("Test").to_path_buf();
+                let update_form = PhotoSetUpdateForm {
+                    new_name: PHOTOSET_3.0.to_string()
+                };
+                let to_photoset3_res = update_photoset(path, update_form.into(), UserAuth("")).await;
+                assert!(to_photoset3_res.is_ok());
+
+                teardown().await;
+            }
+
+            #[tokio::test]
+            async fn test_empty_new_photoset() {
+                setup().await;
+
+                let path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let update_form = PhotoSetUpdateForm {
+                    new_name: "".to_string()
+                };
+                let to_test_res = update_photoset(path.clone(), update_form.into(), UserAuth("")).await;
+                assert!(to_test_res.is_err(), "{:?}", to_test_res);
+            }
+
+            #[tokio::test]
+            async fn test_invalid_new_photoset() {
+                setup().await;
+
+                let path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let update_form = PhotoSetUpdateForm {
+                    new_name: "/etc/resolv.conf".to_string()
+                };
+                let to_test_res = update_photoset(path.clone(), update_form.into(), UserAuth("")).await;
+                assert!(to_test_res.is_err(), "{:?}", to_test_res);
+            }
+
+            #[tokio::test]
+            async fn test_existing_new_photoset() {
+                setup().await;
+
+                let path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let update_form = PhotoSetUpdateForm {
+                    new_name: PHOTOSET_2.0.to_string()
+                };
+                let to_test_res = update_photoset(path.clone(), update_form.into(), UserAuth("")).await;
+                assert!(to_test_res.is_err(), "{:?}", to_test_res);
+            }
+        }
+
+        mod put_photoset {
+
+        }
+
+        mod delete_photoset {
+            use super::*;
+            static TEMP_FILE_NAME: &'static str = "tempfile";
+
+            async fn setup() {
+                let path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let _ = create_photoset(path.clone(), UserAuth("")).await.unwrap();
+
+                let mut full_path = resolve_photoset_path(&path).unwrap();
+                full_path.push(TEMP_FILE_NAME);
+                tokio::fs::File::create(full_path).await.unwrap();
+            }
+
+            async fn teardown() {
+                let photoset_path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let full_path = resolve_photoset_path(&photoset_path).unwrap();
+                std::fs::remove_dir_all(full_path).unwrap();
+            }
+
+            #[tokio::test]
+            async fn delete_valid_photoset() {
+                setup().await;
+
+                let path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let force_removal = true;
+
+                let res = delete_photoset(path, force_removal, UserAuth("")).await;
+                assert!(res.is_ok());
+            }
+
+            #[tokio::test]
+            async fn delete_nonexistent_photoset() {
+                setup().await;
+
+                let path = Path::new("FakePhotoSetNotReal").to_path_buf();
+                let force_removal = false;
+
+                let res = delete_photoset(path, force_removal, UserAuth("")).await;
+                assert!(res.is_err_and(|status| status.code == 404));
+            }
+
+            #[tokio::test]
+            async fn delete_used_photoset() {
+                setup().await;
+
+                let path = Path::new(PHOTOSET_3.0).to_path_buf();
+                let force_removal = false;
+
+                let res = delete_photoset(path, force_removal, UserAuth("")).await;
+                assert!(res.is_err_and(|status| status.code == 409));
+
+                teardown().await;
+            }
+
+            #[tokio::test]
+            async fn delete_file_in_photoset() {
+                setup().await;
+
+                let mut path = Path::new(PHOTOSET_3.0).to_path_buf();
+                path.push(TEMP_FILE_NAME);
+
+                let force_removal = false;
+
+                let res = delete_photoset(path, force_removal, UserAuth("")).await;
+                assert!(res.is_ok());
+
+                teardown().await;
             }
         }
     }
