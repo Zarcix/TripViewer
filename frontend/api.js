@@ -44,7 +44,7 @@ export async function create_photoset(path) {
         method: "POST"
     })
 
-    return res.status;
+    return res;
 }
 
 export async function update_photoset(path, new_name) {
@@ -59,7 +59,7 @@ export async function update_photoset(path, new_name) {
         body: formData
     });
 
-    return res.status;
+    return res;
 }
 
 export async function put_photoset(path, file) {
@@ -79,5 +79,5 @@ export async function delete_photoset(path) {
         method: "DELETE"
     })
 
-    return res.status;
+    return res;
 }

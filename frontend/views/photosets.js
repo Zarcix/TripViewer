@@ -59,6 +59,10 @@ export async function initPhotoSets() {
     let reloadButton = document.getElementById("reloadBtn");
     reloadButton.onclick = async () => await loadPhotoset();
 
+    // Create Button
+    let createButton = document.getElementById("createBtn")
+    createButton.onclick = async () => await createPhotoset();
+
     await loadPhotoset();
 }
 
@@ -66,6 +70,24 @@ async function openPhotoset(name) {
     pushToHistory(name);
 
     // Load the new photoset
+    await loadPhotoset();
+}
+
+async function createPhotoset() {
+    let name = document.getElementById("createName").value;
+
+    const createDir = currentDir + "/" + name;
+    console.log("Creating on " + createDir);
+    let create_res = await create_photoset(createDir);
+    await loadPhotoset();
+}
+
+async function deletePhotoset(name) {
+    const deleteDir = "/" + historyStack.join("/") + "/" + name;
+    let delete_res = await delete_photoset(deleteDir);
+    if (delete_res.status == 409) {
+        alert("Photoset Not Empty. Photoset Not Deleted");
+    }
     await loadPhotoset();
 }
 
@@ -89,16 +111,30 @@ async function loadPhotoset() {
         const buttonDiv = document.createElement('div');
         buttonDiv.classList.add('photoset-buttons');
 
-        ['Open', 'Update', 'Delete'].forEach(action => {
-            const btn = document.createElement('button');
-            btn.textContent = action;
-            btn.addEventListener('click', async () => {
-                if (action === 'Open') await openPhotoset(entry.name);
-                if (action === 'Update') await updatePhotoset(entry.name);
-                if (action === 'Delete') await deletePhotoset(entry.name);
+        if (entry.is_dir) {
+            const openBtn = document.createElement('button');
+            openBtn.textContent = 'Open';
+            openBtn.addEventListener('click', async () => {
+                await openPhotoset(entry.name);
             });
-            buttonDiv.appendChild(btn);
+            buttonDiv.appendChild(openBtn);
+        }
+
+        // Update button (for both files and directories)
+        const updateBtn = document.createElement('button');
+        updateBtn.textContent = 'Update';
+        updateBtn.addEventListener('click', async () => {
+            await updatePhotoset(entry.name);
         });
+        buttonDiv.appendChild(updateBtn);
+
+        // Delete button (for both files and directories)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', async () => {
+            await deletePhotoset(entry.name);
+        });
+        buttonDiv.appendChild(deleteBtn);
 
         entryDiv.appendChild(buttonDiv);
         photosetList.appendChild(entryDiv);
