@@ -63,6 +63,57 @@ export async function initPhotoSets() {
     let createButton = document.getElementById("createBtn")
     createButton.onclick = async () => await createPhotoset();
 
+    // Upload Button
+    let uploadButton = document.getElementById("uploadBtn");
+    uploadButton.onclick = async () => await uploadPhotoset();
+
+    await loadPhotoset();
+}
+
+async function uploadPhotoset() {
+    const input = document.getElementById("fileUpload");
+    const files = input.files;
+
+    if (!files || files.length === 0) {
+        console.warn("No files selected");
+        return;
+    }
+
+    const normalizedDir = currentDir.endsWith("/")
+        ? currentDir
+        : currentDir + "/";
+
+    // Spawn all uploads immediately
+    const uploadPromises = [...files].map(file => {
+        const targetPath = normalizedDir + file.name;
+
+        return put_photoset(targetPath, file)
+            .then(res => ({
+                fileName: file.name,
+                ok: res.ok,
+                status: res.status
+            }))
+            .catch(err => ({
+                fileName: file.name,
+                ok: false,
+                status: "network error",
+                error: err
+            }));
+    });
+
+    // Wait for all to complete
+    const results = await Promise.all(uploadPromises);
+
+    // Process failures
+    for (const result of results) {
+        if (!result.ok) {
+            console.error(
+                `Could not upload ${result.fileName}, status=${result.status}`
+            );
+        }
+    }
+
+    input.value = "";
     await loadPhotoset();
 }
 

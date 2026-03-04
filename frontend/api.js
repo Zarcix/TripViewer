@@ -84,7 +84,7 @@ export async function put_photoset(path, file) {
         body: file, // file should be a File or Blob object
     });
 
-    return await res.json();
+    return await res;
 }
 
 export async function delete_photoset(path) {

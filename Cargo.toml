@@ -18,6 +18,9 @@ features = [
     "tls"
 ]
 
+[dependencies.nanoid]
+version = "0.4.0"
+
 [dependencies.tree_magic]
 version = "0.2.3"
 

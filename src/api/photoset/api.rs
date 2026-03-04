@@ -118,11 +118,16 @@ pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>, _aut
 pub async fn put_photoset(path: PathBuf, data: Data<'_>, _auth: UserAuth<'_>) -> Result<Status, Status> {
     let target_path = resolve_photoset_path(&path)?;
 
-    target_path
+    let parent_path = target_path
         .parent()
         .ok_or(Status::BadRequest)?
         .canonicalize()
         .map_err(|_| Status::NotFound)?;
+
+    if !parent_path.is_dir() {
+        error!("Path to upload is not a directory. parent_path={}", parent_path.display());
+        return Err(Status::BadRequest);
+    }
 
     fs_helpers::save_data(data, &target_path).await?;
 

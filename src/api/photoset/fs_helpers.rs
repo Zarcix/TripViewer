@@ -1,12 +1,13 @@
 use std::path::{Path, PathBuf};
+use nanoid::nanoid;
+
 use rocket::data::ToByteUnit;
 use rocket::tokio::io::AsyncWriteExt;
 use rocket::{Data, tokio};
-
 use rocket::{fs::NamedFile, http::Status, serde::json::Json};
 
 use crate::constants::server_constants::{
-    STAGING_NAME, STAGING_PATH, UPLOAD_LIMIT_MB
+    STAGING_PATH, UPLOAD_LIMIT_MB
 };
 
 use super::models::{FileServerResponse, DirectoryEntry, DirectoryListing};
@@ -122,7 +123,10 @@ pub async fn save_data(data: Data<'_>, target_path: &PathBuf) -> Result<(), Stat
         error!("Could not canonicalize staging path. staging_path={}, error={}", staging_path.display(), e);
         Status::InternalServerError
     })?;
-    staging_path.push(&STAGING_NAME);
+
+    let random_id = format!("{}-{}.part", target_path.file_name().unwrap_or_default().to_string_lossy(), nanoid!());
+    info!("Saving {} temporarily to {}", target_path.display(), random_id);
+    staging_path.push(random_id);
 
     // Upload File to Temp Folder and check for errors
     let mut upload_file = tokio::fs::File::create(&staging_path)
