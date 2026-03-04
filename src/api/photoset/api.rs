@@ -2,10 +2,12 @@ use std::path::{
     Component, Path, PathBuf
 };
 
-use rocket::Data;
+use rocket::fs::NamedFile;
+use rocket::serde::json::Json;
+use rocket::{Data};
 use rocket::form::Form;
 use rocket::http::{
-    Status,
+    ContentType, Status
 };
 
 use crate::api::request_guards::UserAuth;
@@ -37,6 +39,68 @@ fn resolve_photoset_path(short_path: &PathBuf) -> Result<PathBuf, Status> {
     }
 
     Ok(root.join(short_path))
+}
+
+
+#[derive(Responder)]
+pub enum MyResponder {
+    #[response(status = 200)]
+    FullHeaderContent(NamedFile, ContentType),
+
+    #[response(status = 206)]
+    RangedHeaderContent(NamedFile, ContentType),
+
+    #[response(status = 200, content_type = "json")]
+    DirectoryHeaderListing(Json<super::models::DirectoryListing>)
+}
+
+#[head("/<path..>")]
+pub async fn head_photoset(path: PathBuf, _auth: UserAuth<'_>) -> Result<MyResponder, Status> {
+    info!("Listing PhotoSets at {}", path.display());
+    let photoset_path = resolve_photoset_path(&path)?
+        .canonicalize()
+        .map_err(|_| Status::NotFound)?;
+
+    let res: FileServerResponse = if photoset_path.is_dir() {
+        fs_helpers::parse_directory(&photoset_path, &path).await?
+    } else if photoset_path.is_file() {
+        fs_helpers::parse_file(photoset_path.clone()).await?
+    } else {
+        return Err(Status::NotFound);
+    };
+
+    println!("{:?}", res);
+
+    let resp = match res {
+    FileServerResponse::FullContent(named_file) => {
+        // Get content type from extension
+        let content_type = ContentType::from_extension(
+            photoset_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("jpeg"),
+        )
+        .unwrap_or(ContentType::Binary);
+
+        MyResponder::FullHeaderContent(named_file, content_type)
+    }
+    FileServerResponse::RangedContent(_) => {
+        // Video/media content type
+        let ext = photoset_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        let content_type = ContentType::from_extension(&ext).unwrap_or(ContentType::Binary);
+        let named = NamedFile::open(photoset_path).await.unwrap();
+        MyResponder::RangedHeaderContent(named, content_type)
+    }
+    FileServerResponse::DirectoryListing(json_listing) => {
+        MyResponder::DirectoryHeaderListing(json_listing)
+    }
+    };
+
+    Ok(resp)
 }
 
 #[get("/<path..>")]

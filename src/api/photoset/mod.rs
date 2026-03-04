@@ -9,6 +9,7 @@ mod forms;
 
 pub fn route_list() -> Vec<Route> {
     routes![
+        api::head_photoset,
         api::list_photoset,
         api::create_photoset,
         api::update_photoset,
