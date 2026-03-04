@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate rocket;
 
+use std::path::Path;
+
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use clap::Parser;
@@ -37,9 +39,20 @@ struct Args {
 fn setup() -> Result<(), String> {
     let args = Args::parse();
 
+    // API Key
     API_KEY.set(args.api_key)?; 
-    SERVE_PATH.set(args.archive_path)?;
-    STAGING_PATH.set(args.staging_path)?;
+
+    // Data Serve Path
+    let serve_path = Path::new(&args.archive_path)
+        .canonicalize()
+        .map_err(|_| String::from("Invalid Serve Path"))?;
+    SERVE_PATH.set(String::from(serve_path.to_string_lossy()))?;
+
+    // Staging Path
+    let staging_path = Path::new(&args.staging_path)
+        .canonicalize()
+        .map_err(|_| String::from("Invalid Staging Path"))?;
+    STAGING_PATH.set(String::from(staging_path.to_string_lossy()))?;
 
     Ok(())
 }

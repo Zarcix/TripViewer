@@ -55,6 +55,10 @@ main {
     border: none;
 }
 
+.photoset-name {
+    word-break: break-word;
+}
+
 /* ---------------- Current Path Styling ---------------- */
 .path-display {
     background-color: #f0f0f0;   /* light grey background */
@@ -102,4 +106,28 @@ main {
 .photoset-buttons {
     display: flex;
     gap: 8px; /* spacing between buttons */
+}
+
+.photoset-container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;   /* horizontal centering */
+    align-items: center;       /* vertical centering */
+}
+
+.photoset-media {
+    width: 100%;
+    height: 200px;              /* or whatever your grid row height is */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.photoset-image,
+.photoset-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;        /* preserve aspect ratio, no cropping */
 }

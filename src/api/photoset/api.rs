@@ -38,6 +38,7 @@ fn resolve_photoset_path(short_path: &PathBuf) -> Result<PathBuf, Status> {
 
     Ok(root.join(short_path))
 }
+
 #[get("/<path..>")]
 pub async fn list_photoset(path: PathBuf, _auth: UserAuth<'_>) -> Result<FileServerResponse, Status> {
     info!("Listing PhotoSets at {}", path.display());
@@ -82,25 +83,29 @@ pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>, _aut
         .canonicalize()
         .map_err(|_| Status::NotFound)?;
 
-    if !photoset_path.starts_with(root) {
+    if !photoset_path.starts_with(&root) {
         error!("Invalid PhotoSet Path: photoset_path={}", photoset_path.display());
         return Err(Status::Forbidden);
     }
 
     // Form Validation //
     let new_name = form.new_name.trim();
-
     if new_name.is_empty() {
         return Err(Status::BadRequest);
     }
 
-    let parent = photoset_path
+    let new_path = Path::new(&photoset_path.parent().ok_or(Status::InternalServerError)?).to_path_buf().join(new_name);
+    let new_parent = new_path
         .parent()
-        .ok_or(Status::InternalServerError)?;
-    let new_path = parent.join(new_name);
+        .ok_or(Status::InternalServerError)?
+        .canonicalize()
+        .map_err(|e| {
+            error!("Could not canonicalize path. path={}, error={}", new_path.display(), e);
+            Status::Forbidden
+        })?;
 
-    // New Path Validation //
-    if !new_path.starts_with(&root) {
+    if !new_parent.starts_with(&root) {
+        error!("Invalid Path. new_parent={}, root={}", new_parent.display(), root.display());
         return Err(Status::Forbidden);
     }
 

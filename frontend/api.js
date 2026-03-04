@@ -29,13 +29,27 @@ const API_PATH = "/api/photoset"
 //     return res;
 // }
 
+export function get_apiPath() {
+    const server = getServer();
+    return `${server}${API_PATH}`
+}
+
 export async function get_photosets(path) {
     const server = getServer();
     const res = await fetch(`${server}${API_PATH}${path}`, {
         method: "GET"
     })
 
-    return await res.json()
+    return res;
+}
+
+export async function head_photosets(path) {
+    const server = getServer();
+    const res = await fetch(`${server}${API_PATH}${path}`, {
+        method: "HEAD"
+    })
+
+    return res;
 }
 
 export async function create_photoset(path) {

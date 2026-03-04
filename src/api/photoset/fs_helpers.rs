@@ -78,6 +78,7 @@ pub async fn create_dir(photoset_path: &PathBuf) -> Result<(), Status>{
         );
         match e.kind() {
             std::io::ErrorKind::PermissionDenied => Status::Forbidden,
+            std::io::ErrorKind::NotADirectory => Status::BadRequest,
             _ => Status::InternalServerError,
         }
     })
