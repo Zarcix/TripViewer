@@ -11,9 +11,7 @@ mod api;
 mod constants;
 
 use crate::constants::server_constants::{
-    STAGING_PATH,
-    SERVE_PATH,
-    API_KEY,
+    API_KEY, MAX_CHUNK_SIZE_MB, SERVE_PATH, STAGING_PATH
 };
 
 // Route List
@@ -34,6 +32,10 @@ struct Args {
     /// Path where uploaded files will be initially uploaded to. 
     #[arg(long)]
     staging_path: String,
+
+    /// Chunk Sizing
+    #[arg(long, default_value_t = 4)]
+    chunk_size: u64
 }
 
 fn setup() -> Result<(), String> {
@@ -53,6 +55,11 @@ fn setup() -> Result<(), String> {
         .canonicalize()
         .map_err(|_| String::from("Invalid Staging Path"))?;
     STAGING_PATH.set(String::from(staging_path.to_string_lossy()))?;
+
+    // Chunk Size
+    let chunk_size = args.chunk_size * 1024 * 1024; // MB by default
+    MAX_CHUNK_SIZE_MB.set(chunk_size)
+        .map_err(|d| format!("Failed to set chunk size of {} MB", d))?;
 
     Ok(())
 }

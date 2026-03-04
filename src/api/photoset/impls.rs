@@ -16,6 +16,8 @@ use rocket::{
     Response
 };
 
+use crate::constants::server_constants::MAX_CHUNK_SIZE_MB;
+
 pub fn parse_range_header(raw_header: &str) -> Result<RangeHeader, Status> {
     let range_str = raw_header.strip_prefix("bytes=").ok_or(Status::BadRequest)?;
 
@@ -54,10 +56,26 @@ impl <'a> Responder<'a, 'static> for StreamedFile {
         let range_header = req.headers().get_one("Range");
         
         let (mut start, mut end) = (0, file_size - 1);
+
         if let Some(range_str) = range_header {
             let ranges = parse_range_header(range_str)?;
-            (start, end) = (ranges.start, ranges.end.unwrap_or(file_size - 1));
+            start = ranges.start;
+
+            let requested_end = ranges.end.unwrap_or(file_size - 1);
+
+            // Clamp to file bounds first
+            let requested_end = requested_end.min(file_size - 1);
+
+            // Now clamp to MAX_CHUNK_SIZE
+            let max_end = start.saturating_add(MAX_CHUNK_SIZE_MB.get().ok_or(Status::InternalServerError)? - 1);
+            end = requested_end.min(max_end);
         }
+
+        // Ensure start is valid
+        if start >= file_size {
+            return Err(Status::RangeNotSatisfiable);
+        }
+
         let chunk_size = (end - start + 1) as usize;
 
         file.seek(SeekFrom::Start(start)).map_err(|_| Status::InternalServerError)?;
