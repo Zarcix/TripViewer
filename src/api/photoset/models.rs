@@ -1,17 +1,14 @@
-use std::path::PathBuf;
-
+use rocket::http::ContentType;
 use rocket::serde::{Serialize, Deserialize};
 use rocket::fs::NamedFile;
 use rocket::serde::json::Json;
 
-pub struct RangeHeader {
-    pub start: u64,
-    pub end: Option<u64>,
-}
-
 #[derive(Debug)]
 pub struct StreamedFile {
-    pub file: PathBuf
+    pub file: rocket::tokio::fs::File,
+    pub size: u64,
+    pub range: (u64, u64),
+    pub content_type: ContentType
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]

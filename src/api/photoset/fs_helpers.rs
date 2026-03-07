@@ -1,11 +1,14 @@
+use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 use nanoid::nanoid;
 
 use rocket::data::ToByteUnit;
-use rocket::tokio::io::AsyncWriteExt;
+use rocket::http::ContentType;
+use rocket::tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use rocket::{Data, tokio};
 use rocket::{fs::NamedFile, http::Status, serde::json::Json};
 
+use crate::api::request_guards;
 use crate::constants::server_constants::{
     STAGING_PATH, UPLOAD_LIMIT_MB
 };
@@ -53,15 +56,59 @@ pub async fn parse_directory(
     Ok(FileServerResponse::DirectoryListing(Json(listing)))
 }
 
+
+async fn parse_streamed_file(
+        stream_path: PathBuf,
+        range: Option<request_guards::RangeHeader>
+    ) -> Result<StreamedFile, Status> {
+    let mut file = rocket::tokio::fs::File::open(&stream_path)
+        .await
+        .map_err(|_| Status::NotFound)?;
+
+    let size = file.metadata()
+        .await
+        .map_err(|_| Status::InternalServerError)?
+        .len();
+
+    let file_ext = &stream_path
+        .extension()
+        .unwrap_or_default()
+        .to_string_lossy();
+
+    let content_type = ContentType::parse_flexible(file_ext)
+        .unwrap_or(ContentType::MP4);
+
+    let (start, end) = match range {
+        Some(r) => {
+            match r.resolve(size) {
+                Some(resolved) => resolved,
+                None => return Err(Status::RangeNotSatisfiable),
+            }
+        }
+        None => (0, size - 1),
+    };
+
+    file.seek(SeekFrom::Start(start)).await.unwrap();
+
+    let streamed_file = StreamedFile {
+        file,
+        size,
+        content_type,
+        range: (start, end)
+    };
+
+    Ok(streamed_file)
+}
+
+
 pub async fn parse_file(
     full_path: PathBuf,
+    range_header: Option<request_guards::RangeHeader>
 ) -> Result<FileServerResponse, Status> {
 
     let file_ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     if MEDIA_EXTS.contains(&file_ext) {
-        let stream_file = StreamedFile {
-            file: full_path
-};
+        let stream_file = parse_streamed_file(full_path, range_header).await.map_err(|_| Status::InternalServerError)?;
         return Ok(FileServerResponse::RangedContent(stream_file));
     }
 
