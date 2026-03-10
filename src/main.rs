@@ -3,16 +3,14 @@ extern crate rocket;
 
 use std::path::Path;
 
+use clap::Parser;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
-use clap::Parser;
 
 mod api;
 mod constants;
 
-use crate::constants::server_constants::{
-    API_KEY, SERVE_PATH, STAGING_PATH
-};
+use crate::constants::server_constants::{API_KEY, SERVE_PATH, STAGING_PATH};
 
 // Route List
 use api::photoset;
@@ -29,7 +27,7 @@ struct Args {
     #[arg(long)]
     archive_path: String,
 
-    /// Path where uploaded files will be initially uploaded to. 
+    /// Path where uploaded files will be initially uploaded to.
     #[arg(long)]
     staging_path: String,
 }
@@ -38,7 +36,7 @@ fn setup() -> Result<(), String> {
     let args = Args::parse();
 
     // API Key
-    API_KEY.set(args.api_key)?; 
+    API_KEY.set(args.api_key)?;
 
     // Data Serve Path
     let serve_path = Path::new(&args.archive_path)
@@ -73,7 +71,7 @@ impl Fairing for CORS {
 
     async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
         response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
-        response.set_header(Header::new("Access-Control-Allow-Methods","*"));
+        response.set_header(Header::new("Access-Control-Allow-Methods", "*"));
         response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
         response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
         response.remove_header("X-Frame-Options");
@@ -98,6 +96,9 @@ fn run_server() -> _ {
     rocket::build()
         .attach(CORS)
         .mount("/", routes![all_options])
-        .mount("/", rocket::fs::FileServer::from(rocket::fs::relative!("frontend")))
+        .mount(
+            "/",
+            rocket::fs::FileServer::from(rocket::fs::relative!("frontend")),
+        )
         .mount("/api/photoset", photoset::route_list())
 }

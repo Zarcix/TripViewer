@@ -1,28 +1,23 @@
-use rocket::http::Status;
+use rocket::http::{HeaderMap, Status};
 use rocket::request::{FromRequest, Outcome, Request};
 
 use crate::constants::server_constants::API_KEY;
 
+pub struct UserAuth;
 
-#[allow(dead_code)]
-pub struct UserAuth<'r>(pub &'r str);
+pub struct RequestHeaders<'r> {
+    headermap: &'r HeaderMap<'r>,
+}
 
-#[allow(dead_code)]
+#[derive(Debug)]
 pub struct RangeHeader {
     pub start: Option<u64>,
     pub end: Option<u64>,
 }
 
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum UserAuthError {
-    Missing,
-    Invalid,
-}
-
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for UserAuth<'r> {
-    type Error = UserAuthError;
+impl<'r> FromRequest<'r> for UserAuth {
+    type Error = ();
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         /// Returns true if `key` is a valid API key string.
@@ -30,38 +25,80 @@ impl<'r> FromRequest<'r> for UserAuth<'r> {
             key == API_KEY.get().unwrap_or(&String::new())
         }
         match req.cookies().get("auth") {
-            Some(key) if is_valid(key.value()) => {
-                Outcome::Success(UserAuth(key.value()))
-            }
+            Some(key) if is_valid(key.value()) => Outcome::Success(UserAuth),
             Some(_) => {
                 error!("Invalid User Credentials");
-                Outcome::Error((Status::Unauthorized, UserAuthError::Invalid))
+                Outcome::Error((Status::Unauthorized, ()))
             }
             None => {
                 error!("No User Auth Provided");
-                Outcome::Error((Status::Unauthorized, UserAuthError::Invalid))
+                Outcome::Error((Status::Unauthorized, ()))
             }
         }
     }
 }
 
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for RangeHeader {
+impl<'r> FromRequest<'r> for RequestHeaders<'r> {
     type Error = Status;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let value = match req.headers().get_one("Range") {
-            Some(v) => v,
-            None => return Outcome::Forward(Status::BadRequest),
-        };
+        Outcome::Success(RequestHeaders {
+            headermap: req.headers(),
+        })
+        // let value = match req.headers().get_one("Range") {
+        //     Some(v) => v,
+        //     None => return Outcome::Forward(Status::BadRequest),
+        // };
 
-        let range_str = match value.strip_prefix("bytes=") {
-            Some(v) => v,
-            None => return Outcome::Error((Status::BadRequest, Status::BadRequest)),
-        };
+        // let range_str = match value.strip_prefix("bytes=") {
+        //     Some(v) => v,
+        //     None => return Outcome::Error((Status::BadRequest, Status::BadRequest)),
+        // };
+
+        // if range_str.contains(',') {
+        //     return Outcome::Error((Status::BadRequest, Status::RangeNotSatisfiable));
+        // }
+
+        // let mut parts = range_str.splitn(2, '-');
+
+        // let start_str = parts.next().unwrap();
+        // let end_str = parts.next().unwrap_or("");
+
+        // let start = if start_str.is_empty() {
+        //     None
+        // } else {
+        //     match start_str.parse::<u64>() {
+        //         Ok(v) => Some(v),
+        //         Err(_) => return Outcome::Error((Status::BadRequest, Status::BadRequest)),
+        //     }
+        // };
+
+        // let end = if end_str.is_empty() {
+        //     None
+        // } else {
+        //     match end_str.parse::<u64>() {
+        //         Ok(v) => Some(v),
+        //         Err(_) => return Outcome::Error((Status::BadRequest, Status::BadRequest)),
+        //     }
+        // };
+
+        // if start.is_none() && end.is_none() {
+        //     return Outcome::Error((Status::BadRequest, Status::BadRequest));
+        // }
+
+        // Outcome::Success(RangeHeader { start, end })
+    }
+}
+
+impl RequestHeaders<'_> {
+    pub fn extract_range_header(&self) -> Option<RangeHeader> {
+        let value = self.headermap.get_one("Range")?;
+
+        let range_str = value.strip_prefix("bytes=")?;
 
         if range_str.contains(',') {
-            return Outcome::Error((Status::BadRequest, Status::RangeNotSatisfiable));
+            return None;
         }
 
         let mut parts = range_str.splitn(2, '-');
@@ -74,7 +111,7 @@ impl<'r> FromRequest<'r> for RangeHeader {
         } else {
             match start_str.parse::<u64>() {
                 Ok(v) => Some(v),
-                Err(_) => return Outcome::Error((Status::BadRequest, Status::BadRequest)),
+                Err(_) => return None,
             }
         };
 
@@ -83,15 +120,15 @@ impl<'r> FromRequest<'r> for RangeHeader {
         } else {
             match end_str.parse::<u64>() {
                 Ok(v) => Some(v),
-                Err(_) => return Outcome::Error((Status::BadRequest, Status::BadRequest)),
+                Err(_) => return None,
             }
         };
 
         if start.is_none() && end.is_none() {
-            return Outcome::Error((Status::BadRequest, Status::BadRequest));
+            return None;
         }
 
-        Outcome::Success(RangeHeader { start, end })
+        Some(RangeHeader { start, end })
     }
 }
 

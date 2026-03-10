@@ -1,14 +1,19 @@
-use rocket::http::ContentType;
-use rocket::serde::{Serialize, Deserialize};
+use std::path::PathBuf;
+
 use rocket::fs::NamedFile;
+use rocket::http::ContentType;
 use rocket::serde::json::Json;
+use rocket::serde::{Deserialize, Serialize};
+use rocket::tokio::fs::File;
+
+use crate::api::request_guards::RangeHeader;
 
 #[derive(Debug)]
 pub struct StreamedFile {
-    pub file: rocket::tokio::fs::File,
+    pub file: File,
     pub size: u64,
     pub range: (u64, u64),
-    pub content_type: ContentType
+    pub content_type: ContentType,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
@@ -21,8 +26,7 @@ pub struct DirectoryEntry {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(crate = "rocket::serde")]
 pub struct DirectoryListing {
-    pub path: String,
-    pub entries: Vec<DirectoryEntry>
+    pub entries: Vec<DirectoryEntry>,
 }
 
 #[derive(Debug)]
@@ -30,4 +34,18 @@ pub enum FileServerResponse {
     FullContent(NamedFile),
     RangedContent(StreamedFile),
     DirectoryListing(Json<DirectoryListing>),
+}
+
+#[derive(Debug)]
+pub struct FileEntry {
+    pub path: PathBuf,
+    pub kind: FileType,
+    pub range: Option<RangeHeader>,
+}
+
+#[derive(Debug)]
+pub enum FileType {
+    File,
+    Media,
+    Directory,
 }

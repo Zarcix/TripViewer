@@ -1,28 +1,19 @@
-use std::path::{
-    Component, Path, PathBuf
-};
+use std::path::{Component, Path, PathBuf};
 
-use rocket::fs::NamedFile;
-use rocket::serde::json::Json;
-use rocket::{Data};
 use rocket::form::Form;
-use rocket::http::{
-    ContentType, Status
-};
+use rocket::http::Status;
+use rocket::Data;
 
-use crate::api::request_guards::{RangeHeader, UserAuth};
+use crate::api::photoset::models::FileEntry;
+use crate::api::request_guards::{RequestHeaders, UserAuth};
 use crate::constants::server_constants::SERVE_PATH;
 
-use super::fs_helpers;
 use super::forms::PhotoSetUpdateForm;
+use super::fs_helpers;
 use super::models::FileServerResponse;
 
 fn resolve_photoset_path(short_path: &PathBuf) -> Result<PathBuf, Status> {
-    let root = Path::new(
-        SERVE_PATH
-            .get()
-            .ok_or(Status::InternalServerError)?
-    );
+    let root = Path::new(SERVE_PATH.get().ok_or(Status::InternalServerError)?);
 
     // Reject absolute paths immediately
     if short_path.is_absolute() {
@@ -41,88 +32,27 @@ fn resolve_photoset_path(short_path: &PathBuf) -> Result<PathBuf, Status> {
     Ok(root.join(short_path))
 }
 
-
-#[derive(Responder)]
-pub enum MyResponder {
-    #[response(status = 200)]
-    FullHeaderContent(NamedFile, ContentType),
-
-    #[response(status = 206)]
-    RangedHeaderContent(NamedFile, ContentType),
-
-    #[response(status = 200, content_type = "json")]
-    DirectoryHeaderListing(Json<super::models::DirectoryListing>)
-}
-
-#[head("/<path..>")]
-pub async fn head_photoset(path: PathBuf, _auth: UserAuth<'_>) -> Result<MyResponder, Status> {
-    info!("Listing PhotoSets at {}", path.display());
-    let photoset_path = resolve_photoset_path(&path)?
-        .canonicalize()
-        .map_err(|_| Status::NotFound)?;
-
-    let res: FileServerResponse = if photoset_path.is_dir() {
-        fs_helpers::parse_directory(&photoset_path, &path).await?
-    } else if photoset_path.is_file() {
-        fs_helpers::parse_file(photoset_path.clone(), None).await?
-    } else {
-        return Err(Status::NotFound);
-    };
-
-    println!("{:?}", res);
-
-    let resp = match res {
-    FileServerResponse::FullContent(named_file) => {
-        // Get content type from extension
-        let content_type = ContentType::from_extension(
-            photoset_path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("jpeg"),
-        )
-        .unwrap_or(ContentType::Binary);
-
-        MyResponder::FullHeaderContent(named_file, content_type)
-    }
-    FileServerResponse::RangedContent(_) => {
-        // Video/media content type
-        let ext = photoset_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        let content_type = ContentType::from_extension(&ext).unwrap_or(ContentType::Binary);
-        let named = NamedFile::open(photoset_path).await.unwrap();
-        MyResponder::RangedHeaderContent(named, content_type)
-    }
-    FileServerResponse::DirectoryListing(json_listing) => {
-        MyResponder::DirectoryHeaderListing(json_listing)
-    }
-    };
-
-    Ok(resp)
-}
-
 #[get("/<path..>")]
-pub async fn list_photoset(path: PathBuf, range_header: Option<RangeHeader> ,_auth: UserAuth<'_>) -> Result<FileServerResponse, Status> {
+pub async fn list_photoset(
+    path: PathBuf,
+    headers: RequestHeaders<'_>,
+    _auth: UserAuth,
+) -> Result<FileServerResponse, Status> {
     info!("Listing PhotoSets at {}", path.display());
     let photoset_path = resolve_photoset_path(&path)?
         .canonicalize()
         .map_err(|_| Status::NotFound)?;
 
-    if photoset_path.is_dir() {
-        return fs_helpers::parse_directory(&photoset_path, &path).await;
-    }
+    let mut photoset_entry = FileEntry::resolve_path_type(photoset_path);
+    photoset_entry.range = headers.extract_range_header();
 
-    if photoset_path.is_file() {
-        return fs_helpers::parse_file(photoset_path, range_header).await;
-    }
+    let photoset_res = photoset_entry.parse_entry().await;
 
-    Err(Status::NotFound)
+    photoset_res
 }
 
 #[post("/<path..>")]
-pub async fn create_photoset(path: PathBuf, _auth: UserAuth<'_>) -> Result<Status, Status> {
+pub async fn create_photoset(path: PathBuf, _auth: UserAuth) -> Result<Status, Status> {
     info!("Creating PhotoSet at {}", path.display());
 
     let photoset_path = resolve_photoset_path(&path)?;
@@ -133,22 +63,25 @@ pub async fn create_photoset(path: PathBuf, _auth: UserAuth<'_>) -> Result<Statu
 }
 
 #[patch("/<path..>", data = "<form>")]
-pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>, _auth: UserAuth<'_>) -> Result<Status, Status> {
+pub async fn update_photoset(
+    path: PathBuf,
+    form: Form<PhotoSetUpdateForm>,
+    _auth: UserAuth,
+) -> Result<Status, Status> {
     info!("Updating PhotoSet at {}", path.display());
 
     // Incoming Path Validation //
-    let root = Path::new(
-        SERVE_PATH
-            .get()
-            .ok_or(Status::InternalServerError)?
-    );
+    let root = Path::new(SERVE_PATH.get().ok_or(Status::InternalServerError)?);
 
     let photoset_path = resolve_photoset_path(&path)?
         .canonicalize()
         .map_err(|_| Status::NotFound)?;
 
-    if !photoset_path.starts_with(&root) {
-        error!("Invalid PhotoSet Path: photoset_path={}", photoset_path.display());
+    if !photoset_path.starts_with(root) {
+        error!(
+            "Invalid PhotoSet Path: photoset_path={}",
+            photoset_path.display()
+        );
         return Err(Status::Forbidden);
     }
 
@@ -158,18 +91,28 @@ pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>, _aut
         return Err(Status::BadRequest);
     }
 
-    let new_path = Path::new(&photoset_path.parent().ok_or(Status::InternalServerError)?).to_path_buf().join(new_name);
+    let new_path = Path::new(&photoset_path.parent().ok_or(Status::InternalServerError)?)
+        .to_path_buf()
+        .join(new_name);
     let new_parent = new_path
         .parent()
         .ok_or(Status::InternalServerError)?
         .canonicalize()
         .map_err(|e| {
-            error!("Could not canonicalize path. path={}, error={}", new_path.display(), e);
+            error!(
+                "Could not canonicalize path. path={}, error={}",
+                new_path.display(),
+                e
+            );
             Status::Forbidden
         })?;
 
-    if !new_parent.starts_with(&root) {
-        error!("Invalid Path. new_parent={}, root={}", new_parent.display(), root.display());
+    if !new_parent.starts_with(root) {
+        error!(
+            "Invalid Path. new_parent={}, root={}",
+            new_parent.display(),
+            root.display()
+        );
         return Err(Status::Forbidden);
     }
 
@@ -179,7 +122,11 @@ pub async fn update_photoset(path: PathBuf, form: Form<PhotoSetUpdateForm>, _aut
 }
 
 #[put("/<path..>", data = "<data>")]
-pub async fn put_photoset(path: PathBuf, data: Data<'_>, _auth: UserAuth<'_>) -> Result<Status, Status> {
+pub async fn put_photoset(
+    path: PathBuf,
+    data: Data<'_>,
+    _auth: UserAuth,
+) -> Result<Status, Status> {
     let target_path = resolve_photoset_path(&path)?;
 
     let parent_path = target_path
@@ -189,7 +136,10 @@ pub async fn put_photoset(path: PathBuf, data: Data<'_>, _auth: UserAuth<'_>) ->
         .map_err(|_| Status::NotFound)?;
 
     if !parent_path.is_dir() {
-        error!("Path to upload is not a directory. parent_path={}", parent_path.display());
+        error!(
+            "Path to upload is not a directory. parent_path={}",
+            parent_path.display()
+        );
         return Err(Status::BadRequest);
     }
 
@@ -199,7 +149,11 @@ pub async fn put_photoset(path: PathBuf, data: Data<'_>, _auth: UserAuth<'_>) ->
 }
 
 #[delete("/<path..>?<force_removal>")]
-pub async fn delete_photoset(path: PathBuf, force_removal: bool, _auth: UserAuth<'_>) -> Result<Status, Status> {
+pub async fn delete_photoset(
+    path: PathBuf,
+    force_removal: bool,
+    _auth: UserAuth,
+) -> Result<Status, Status> {
     let target_path = resolve_photoset_path(&path)?
         .canonicalize()
         .map_err(|_| Status::NotFound)?;
