@@ -46,48 +46,6 @@ impl<'r> FromRequest<'r> for RequestHeaders<'r> {
         Outcome::Success(RequestHeaders {
             headermap: req.headers(),
         })
-        // let value = match req.headers().get_one("Range") {
-        //     Some(v) => v,
-        //     None => return Outcome::Forward(Status::BadRequest),
-        // };
-
-        // let range_str = match value.strip_prefix("bytes=") {
-        //     Some(v) => v,
-        //     None => return Outcome::Error((Status::BadRequest, Status::BadRequest)),
-        // };
-
-        // if range_str.contains(',') {
-        //     return Outcome::Error((Status::BadRequest, Status::RangeNotSatisfiable));
-        // }
-
-        // let mut parts = range_str.splitn(2, '-');
-
-        // let start_str = parts.next().unwrap();
-        // let end_str = parts.next().unwrap_or("");
-
-        // let start = if start_str.is_empty() {
-        //     None
-        // } else {
-        //     match start_str.parse::<u64>() {
-        //         Ok(v) => Some(v),
-        //         Err(_) => return Outcome::Error((Status::BadRequest, Status::BadRequest)),
-        //     }
-        // };
-
-        // let end = if end_str.is_empty() {
-        //     None
-        // } else {
-        //     match end_str.parse::<u64>() {
-        //         Ok(v) => Some(v),
-        //         Err(_) => return Outcome::Error((Status::BadRequest, Status::BadRequest)),
-        //     }
-        // };
-
-        // if start.is_none() && end.is_none() {
-        //     return Outcome::Error((Status::BadRequest, Status::BadRequest));
-        // }
-
-        // Outcome::Success(RangeHeader { start, end })
     }
 }
 
