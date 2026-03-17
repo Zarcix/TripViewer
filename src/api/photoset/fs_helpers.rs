@@ -176,7 +176,12 @@ pub async fn save_data(data: Data<'_>, target_path: &PathBuf) -> Result<(), Stat
     let stream_res = stream
         .stream_to(&mut upload_file)
         .await
-        .map_err(|_| Status::InternalServerError)?;
+        .map_err(|e| {
+            match e.kind() {
+                std::io::ErrorKind::Other => Status::new(499),
+                _ => Status::InternalServerError
+            }
+        })?;
 
     if !stream_res.complete {
         let _ = tokio::fs::remove_file(&staging_path).await;

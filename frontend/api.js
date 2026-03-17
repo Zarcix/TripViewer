@@ -76,15 +76,34 @@ export async function update_photoset(path, new_name) {
     return res;
 }
 
-export async function put_photoset(path, file) {
+export function put_photoset(path, file, onProgress) {
     const server = getServer();
+    const xhr = new XMLHttpRequest();
 
-    const res = await fetch(`${server}${API_PATH}${path}`, {
-        method: "PUT",
-        body: file, // file should be a File or Blob object
+    const promise = new Promise((resolve, reject) => {
+        xhr.open("PUT", `${server}${API_PATH}${path}`);
+        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+        xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable && onProgress) {
+                onProgress(event.loaded, event.total);
+            }
+        };
+
+        xhr.onload = () => {
+            resolve({
+                ok: xhr.status >= 200 && xhr.status < 300,
+                status: xhr.status
+            });
+        };
+
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.onabort = () => reject(new Error("Upload aborted"));
+
+        xhr.send(file);
     });
 
-    return await res;
+    return { promise, xhr };
 }
 
 export async function delete_photoset(path) {

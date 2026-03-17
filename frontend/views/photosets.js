@@ -70,8 +70,36 @@ export async function initPhotoSets() {
     await loadPhotoset();
 }
 
+function createUploadRow(file) {
+    const row = document.createElement("div");
+    row.className = "upload-row";
+
+    const name = document.createElement("span");
+    name.textContent = file.name;
+
+    const progress = document.createElement("progress");
+    progress.value = 0;
+    progress.max = 100;
+
+    const status = document.createElement("span");
+    status.textContent = "0%";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "Cancel";
+
+    row.appendChild(name);
+    row.appendChild(progress);
+    row.appendChild(status);
+    row.appendChild(cancelBtn);
+
+    return { row, progress, status, cancelBtn };
+}
+
 async function uploadPhotoset() {
     const input = document.getElementById("fileUpload");
+    const container = document.getElementById("uploadContainer");
+    const uploadButton = document.getElementById("uploadBtn");
+
     const files = input.files;
 
     if (!files || files.length === 0) {
@@ -79,32 +107,78 @@ async function uploadPhotoset() {
         return;
     }
 
+    container.hidden = false;
+    uploadButton.hidden = true;
+    container.innerHTML = ""; // reset UI
+
     const normalizedDir = currentDir.endsWith("/")
         ? currentDir
         : currentDir + "/";
 
-    // Spawn all uploads immediately
     const uploadPromises = [...files].map(file => {
         const targetPath = normalizedDir + file.name;
 
-        return put_photoset(targetPath, file)
-            .then(res => ({
-                fileName: file.name,
-                ok: res.ok,
-                status: res.status
-            }))
-            .catch(err => ({
-                fileName: file.name,
-                ok: false,
-                status: "network error",
-                error: err
-            }));
+        // 🔧 Create UI for this file
+        const { row, progress, status, cancelBtn } = createUploadRow(file);
+        container.appendChild(row);
+
+        let lastLoaded = 0;
+        let cancelled = false;
+
+        const { promise, xhr } = put_photoset(
+            targetPath,
+            file,
+            (loaded, total) => {
+                if (total > 0) {
+                    const percent = Math.round((loaded / total) * 100);
+                    progress.value = percent;
+                    status.textContent = `${percent}%`;
+                }
+                lastLoaded = loaded;
+            }
+        );
+
+        // 🔴 Per-file cancel
+        cancelBtn.onclick = () => {
+            cancelled = true;
+            xhr.abort();
+            status.textContent = "Cancelled";
+            progress.value = 0;
+        };
+
+        return promise
+            .then(res => {
+                if (!cancelled) {
+                    if (res.ok) {
+                        progress.value = 100;
+                        status.textContent = "Done";
+                    } else {
+                        status.textContent = `Error (${res.status})`;
+                    }
+                }
+
+                return {
+                    fileName: file.name,
+                    ok: res.ok,
+                    status: res.status
+                };
+            })
+            .catch(err => {
+                if (!cancelled) {
+                    status.textContent = "Failed";
+                }
+
+                return {
+                    fileName: file.name,
+                    ok: false,
+                    status: err.message
+                };
+            });
     });
 
-    // Wait for all to complete
     const results = await Promise.all(uploadPromises);
 
-    // Process failures
+    // Log failures
     for (const result of results) {
         if (!result.ok) {
             console.error(
@@ -115,6 +189,15 @@ async function uploadPhotoset() {
 
     input.value = "";
     await loadPhotoset();
+    uploadButton.hidden = false;
+
+    // Optional: auto-hide if everything succeeded
+    const allOk = results.every(r => r.ok);
+    if (allOk) {
+        setTimeout(() => {
+            container.hidden = true;
+        }, 800);
+    }
 }
 
 async function openPhotoset(name) {
