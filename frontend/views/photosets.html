@@ -3,31 +3,51 @@
         <h1>PhotoSets</h1>
     </header>
 
-    <section id="photosetCreation" class="card">
-        <h3>Create New Collection</h3>
-        <div class="input-group">
-            <input type="text" id="name" placeholder="Enter photoset name...">
-            <button id="createBtn" class="primary-btn">Create</button>
-        </div>
-    </section>
-
     <section id="photosetContainer" class="card">
+        <h2>Photoset Explorer</h2>
         <div class="list-header">
             <div class="navigation-controls">
-                <button id="backBtn" class="secondary-btn">← Back</button>
                 <div class="path-display">
+                    <button id="backBtn" class="secondary-btn">Back</button>
                     <span class="label">Current Path:</span>
-                    <code id="photosetPath">/root/my-photos</code>
+                    <input type="text" id="photosetPath" value="/" />
+                    <button id="reloadBtn" class="secondary-btn">Reload</button>
                 </div>
             </div>
         </div>
 
-        <div id="photosetList" class="grid">
+        <div id="photosetList">
             <div class="placeholder-text">No photosets found in this directory.</div>
         </div>
+    </section>
 
-        <div id="photosetPreview" hidden="true">
-            <div class="placeholder-text">No photosets found in this directory.</div>
+    <section id="photosetOperations" class="card">
+        <h2>Photoset Operations</h2>
+
+        <!-- Create -->
+        <div class="operation-block">
+            <h3>Create Photoset</h3>
+            <div class="input-group">
+                <input type="text" id="createName" placeholder="Enter photoset name..." />
+                <button id="createBtn" class="primary-btn">Create</button>
+            </div>
+        </div>
+
+        <!-- Upload -->
+        <div class="operation-block">
+            <h3>Upload Files</h3>
+
+            <div class="input-group">
+                <input 
+                    type="file" 
+                    id="fileUpload" 
+                    multiple 
+                />
+                <button id="uploadBtn" class="primary-btn">
+                    Upload
+                </button>
+                <div id="uploadContainer" hidden></div>
+            </div>
         </div>
     </section>
 </div>

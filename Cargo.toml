@@ -1,5 +1,5 @@
 [package]
-name = "ui"
+name = "tripviewer"
 version = "0.1.0"
 edition = "2021"
 
@@ -18,8 +18,8 @@ features = [
     "tls"
 ]
 
-[dependencies.sanitize-filename]
-version = "0.6.0"
+[dependencies.nanoid]
+version = "0.4.0"
 
 [dependencies.tree_magic]
 version = "0.2.3"
@@ -27,3 +27,9 @@ version = "0.2.3"
 [dependencies.clap]
 version = "4.5.60"
 features = ["derive"]
+
+[dev-dependencies.mockall]
+version = "0.14"
+
+[dev-dependencies.ctor]
+version = "0.6.3"

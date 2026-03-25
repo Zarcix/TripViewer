@@ -1,4 +1,3 @@
-import { initPhotos } from './views/photos.js';
 import { initPhotoSets } from './views/photosets.js';
 import { initSettings } from './views/settings.js';
 
@@ -10,10 +9,6 @@ async function loadView(name) {
     content.innerHTML = html;
 
     switch (name) {
-        case "photos": {
-            await initPhotos();
-            break;
-        }
         case "photosets": {
             initPhotoSets();
             break;
@@ -32,4 +27,4 @@ document.querySelectorAll("[data-view]").forEach(btn => {
 });
 
 // default view
-loadView("photos");
+loadView("photosets");

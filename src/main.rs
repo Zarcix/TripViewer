@@ -1,23 +1,19 @@
 #[macro_use]
 extern crate rocket;
 
+use std::path::Path;
+
+use clap::Parser;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
-use clap::Parser;
 
 mod api;
 mod constants;
-mod tasks;
 
-use crate::constants::server_constants::{
-    SERVER_PATH,
-    API_KEY,
-};
+use crate::constants::server_constants::{API_KEY, SERVE_PATH, STAGING_PATH};
 
 // Route List
-use api::file_server;
-use api::photo_api;
-use api::photoset_api;
+use api::photoset;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -30,13 +26,29 @@ struct Args {
     /// Server Photo Archive Path
     #[arg(long)]
     archive_path: String,
+
+    /// Path where uploaded files will be initially uploaded to.
+    #[arg(long)]
+    staging_path: String,
 }
 
 fn setup() -> Result<(), String> {
     let args = Args::parse();
 
-    API_KEY.set(args.api_key)?; 
-    SERVER_PATH.set(args.archive_path)?;
+    // API Key
+    API_KEY.set(args.api_key)?;
+
+    // Data Serve Path
+    let serve_path = Path::new(&args.archive_path)
+        .canonicalize()
+        .map_err(|_| String::from("Invalid Serve Path"))?;
+    SERVE_PATH.set(String::from(serve_path.to_string_lossy()))?;
+
+    // Staging Path
+    let staging_path = Path::new(&args.staging_path)
+        .canonicalize()
+        .map_err(|_| String::from("Invalid Staging Path"))?;
+    STAGING_PATH.set(String::from(staging_path.to_string_lossy()))?;
 
     Ok(())
 }
@@ -59,7 +71,7 @@ impl Fairing for CORS {
 
     async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
         response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
-        response.set_header(Header::new("Access-Control-Allow-Methods","*"));
+        response.set_header(Header::new("Access-Control-Allow-Methods", "*"));
         response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
         response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
         response.remove_header("X-Frame-Options");
@@ -84,8 +96,9 @@ fn run_server() -> _ {
     rocket::build()
         .attach(CORS)
         .mount("/", routes![all_options])
-        .mount("/", rocket::fs::FileServer::from(rocket::fs::relative!("frontend")))
-        .mount("/api/photoset", photoset_api::api_routes::route_list())
-        .mount("/api/photo", photo_api::api_routes::route_list())
-        .mount(format!("/{}/photos", API_KEY.get().unwrap()), file_server::api_routes())
+        .mount(
+            "/",
+            rocket::fs::FileServer::from(rocket::fs::relative!("frontend")),
+        )
+        .mount("/api/photoset", photoset::route_list())
 }
