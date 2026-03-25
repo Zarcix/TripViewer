@@ -48,7 +48,7 @@ impl models::FileEntry {
         let is_media = path
             .extension()
             .and_then(|e| e.to_str())
-            .is_some_and(|ext| MEDIA_EXTS.contains(&ext));
+            .is_some_and(|ext| MEDIA_EXTS.contains(&ext.to_lowercase().as_str()));
 
         let path_type = if path.is_dir() {
             models::FileType::Directory
