@@ -1,6 +1,9 @@
+/* --- Keep Original Sidebar & Layout --- */
 body {
     margin: 0;
     font-family: sans-serif;
+    background-color: #121212; /* Dark theme for media focus */
+    color: #eee;
 }
 
 .layout {
@@ -16,118 +19,150 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    border-right: 1px solid #333;
 }
 
 .sidebar button {
     padding: 10px;
     cursor: pointer;
+    background: #333;
+    color: white;
+    border: 1px solid #444;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.sidebar button:hover {
+    background: #444;
 }
 
 main {
     flex: 1;
     padding: 20px;
-    overflow-y: auto;
+    overflow-y: auto; /* This is the 'root' for your Observer */
 }
 
+/* --- New Larger Grid Styling --- */
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 200px);
-    gap: 10px;
+    /* Bigger previews: Minimum 400px wide */
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    padding-bottom: 20vh; /* Space at bottom for scrolling */
 }
 
-.card {
-    border: 1px solid #ddd;
-    padding: 5px;
-}
-
-#photosetPreview {
-    width: 100%;       /* Fill the horizontal space of the page */
-    height: 60vh;      /* Takes up 60% of the screen height */
-    margin: 20px 0;    /* Adds space above and below so it doesn't touch other UI */
-    border: 2px solid #333;
-    border-radius: 8px;
-    overflow: hidden;  /* Keeps the iframe corners rounded */
-}
-
-.embedded-photo-frame {
-    width: 100%;
-    height: 100%;
-    border: none;
-}
-
-.photoset-name {
-    word-break: break-word;
-}
-
-/* ---------------- Current Path Styling ---------------- */
-.path-display {
-    background-color: #f0f0f0;   /* light grey background */
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-weight: 600;
-    color: #333;                 /* darker text for contrast */
-    display: flex;
-    align-items: center;
-    margin-left: 10px;
-    font-size: 0.95rem;
-}
-
-.path-display input {
-    flex: 1;                     /* fill remaining space */
-    padding: 4px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-family: monospace;
-    font-size: 0.95rem;
-    color: #1a73e8;              /* bright blue text */
-    background-color: #fff;
-}
-
-.path-display input:focus {
-    outline: none;
-    border-color: #1a73e8;
-    box-shadow: 0 0 2px #1a73e8;
-}
-
+/* --- The Essential Observer Container --- */
 .photoset-entry {
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
     display: flex;
-    flex-direction: column; /* stack name and buttons */
-    align-items: center;    /* horizontally center everything */
-    gap: 4px;
-    padding: 6px;
-    border-bottom: 1px solid #ccc;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.photoset-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .photoset-name {
     font-weight: bold;
-    text-align: center; /* optional, for good measure */
+    font-size: 1.1rem;
+    word-break: break-all;
+    color: #fff;
 }
 
-.photoset-buttons {
-    display: flex;
-    gap: 8px; /* spacing between buttons */
-}
-
-.photoset-container {
-    width: 100vw;
-    height: 100vh;
-    display: flex;
-    justify-content: center;   /* horizontal centering */
-    align-items: center;       /* vertical centering */
-}
-
-.photoset-media {
+/* CRITICAL: This container must not collapse when the image is 
+   unloaded, otherwise the IntersectionObserver logic fails.
+*/
+.photoset-media-container {
     width: 100%;
-    height: 200px;              /* or whatever your grid row height is */
+    aspect-ratio: 16 / 9; /* Keeps height consistent even when empty */
+    min-height: 250px; 
+    background-color: #000;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 4px;
     overflow: hidden;
+    position: relative;
+    color: #555;
+    font-size: 0.8rem;
 }
 
 .photoset-image,
 .photoset-video {
     width: 100%;
     height: 100%;
-    object-fit: contain;        /* preserve aspect ratio, no cropping */
+    object-fit: contain; /* Shows entire image/video without cropping */
+    background: #000;
+}
+
+.photoset-iframe {
+    width: 80%;
+    height: 800px;
+    border: none;
+}
+
+/* --- Single File View (Large) --- */
+.single-media-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px;
+    width: 100%;
+}
+
+.single-media-wrapper .photoset-image,
+.single-media-wrapper .photoset-video {
+    max-width: 95%;
+    max-height: 85vh;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+    border-radius: 8px;
+}
+
+/* --- Navigation & Inputs --- */
+.path-display {
+    background-color: #2a2a2a;
+    padding: 10px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 10px;
+}
+
+.path-display input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #121212;
+    color: #4db8ff;
+    font-family: monospace;
+}
+
+/* --- Upload Rows --- */
+#uploadContainer {
+    background: #2a2a2a;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.upload-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 0.85rem;
+}
+
+progress {
+    flex: 1;
+    height: 8px;
 }

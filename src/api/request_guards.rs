@@ -24,8 +24,21 @@ impl<'r> FromRequest<'r> for UserAuth {
         fn is_valid(key: &str) -> bool {
             key == API_KEY.get().unwrap_or(&String::new())
         }
-        match req.cookies().get("auth") {
-            Some(key) if is_valid(key.value()) => Outcome::Success(UserAuth),
+
+        let token = req.headers().get_one("Authorization")
+            .and_then(|h| h.strip_prefix("Bearer "))
+            .or_else(|| {
+                req.cookies()
+                    .get("auth")
+                    .and_then(|cookie| Some(cookie.value()))
+            })
+            .or_else(|| {
+                req.query_value::<&str>("token")
+                    .and_then(|res| res.ok())
+            });
+
+        match token {
+            Some(key) if is_valid(key) => Outcome::Success(UserAuth),
             Some(_) => {
                 error!("Invalid User Credentials");
                 Outcome::Error((Status::Unauthorized, ()))
@@ -35,6 +48,17 @@ impl<'r> FromRequest<'r> for UserAuth {
                 Outcome::Error((Status::Unauthorized, ()))
             }
         }
+        // match req.cookies().get("auth") {
+        //     Some(key) if is_valid(key.value()) => Outcome::Success(UserAuth),
+        //     Some(_) => {
+        //         error!("Invalid User Credentials");
+        //         Outcome::Error((Status::Unauthorized, ()))
+        //     }
+        //     None => {
+        //         error!("No User Auth Provided");
+        //         Outcome::Error((Status::Unauthorized, ()))
+        //     }
+        // }
     }
 }
 

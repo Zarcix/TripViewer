@@ -1,5 +1,15 @@
 import { get_apiPath, get_photosets, head_photosets, create_photoset, update_photoset, put_photoset, delete_photoset } from "../api.js";
+import { getToken } from "../localstorage.js";
 
+// --- Auth Helper ---
+// Generates a URL with the token attached for <img> and <video> tags
+function getAuthMediaUrl(path) {
+    const token = getToken();
+    const url = get_apiPath() + path;
+    return token ? `${url}?token=${encodeURIComponent(token)}` : url;
+}
+
+// --- History Management ---
 let historyStack = [];
 let currentDir = "/"; // root
 
@@ -30,6 +40,9 @@ function updateCurrentDir() {
 }
 
 export async function initPhotoSets() {
+    historyStack = [];
+    currentDir = "/";
+
     // Path Input
     let photosetPath = document.getElementById("photosetPath");
     photosetPath.value = currentDir;
@@ -70,6 +83,8 @@ export async function initPhotoSets() {
     await loadPhotoset();
 }
 
+
+// --- Upload Logic ---
 function createUploadRow(file) {
     const row = document.createElement("div");
     row.className = "upload-row";
@@ -200,6 +215,7 @@ async function uploadPhotoset() {
     }
 }
 
+// --- Open Logic ---
 async function openPhotoset(name) {
     pushToHistory(name);
 
@@ -207,6 +223,7 @@ async function openPhotoset(name) {
     await loadPhotoset();
 }
 
+// --- Create Logic ---
 async function createPhotoset() {
     let name = document.getElementById("createName").value;
 
@@ -227,6 +244,7 @@ async function createPhotoset() {
     }
 }
 
+// --- Delete Logic ---
 async function deletePhotoset(name) {
     const deleteDir = "/" + historyStack.join("/") + "/" + name;
 
@@ -246,6 +264,7 @@ async function deletePhotoset(name) {
     }
 }
 
+// --- Update Logic ---
 async function updatePhotoset(entry) {
     let answer = prompt("New Name");
     if (answer == null) {
@@ -269,148 +288,212 @@ async function updatePhotoset(entry) {
     }
 }
 
-function loadPhotosetImage(image_path) {
-    let mediaElement = document.createElement("img");
-    mediaElement.src = image_path;
-    mediaElement.loading = "lazy";
-    mediaElement.classList.add("photoset-image");
-    return mediaElement;
-}
+// --- Loading Logic ---
+const mediaObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        const container = entry.target;
+        const entryName = container.dataset.entryName;
 
-function loadPhotosetVideo(video_path) {
-    let mediaElement = document.createElement("video");
-    mediaElement.src = video_path;
-    mediaElement.controls = true;
-    mediaElement.preload = "metadata";
-    mediaElement.playsInline = true;
-    mediaElement.classList.add("photoset-video");
+        if (entry.isIntersecting) {
+            if (container.dataset.loaded === "false") {
+                // Create a new controller for this specific load attempt
+                const controller = new AbortController();
+                container._abortController = controller; // Store it on the element
+                
+                renderMediaIntoContainer(entryName, container, controller.signal);
+                container.dataset.loaded = "true";
+            }
+        } else {
+            if (container.dataset.loaded === "true") {
+                // 1. If there is an active fetch, cancel it immediately
+                if (container._abortController) {
+                    container._abortController.abort();
+                    container._abortController = null;
+                }
 
-    return mediaElement
-}
-
-function loadPhotosetFile(file_path) {
-    const fragment = document.createDocumentFragment();
-
-    const lower = file_path.toLowerCase();
-
-    let mediaElement;
-
-    if (/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(lower)) {
-        mediaElement = loadPhotosetImage(file_path);
-    }
-    else if (/\.(mp4|webm|ogg|mov)$/i.test(lower)) {
-        mediaElement = loadPhotosetVideo(file_path);
-    }
-    else if (/\.(txt|html?)$/i.test(lower)) {
-        mediaElement = document.createElement("iframe");
-        mediaElement.src = file_path;
-        mediaElement.classList.add("photoset-iframe");
-        mediaElement.style.width = "100%";
-        mediaElement.style.height = "600px";
-        mediaElement.style.border = "none";
-    }
-    else {
-        const link = document.createElement("a");
-        link.href = file_path;
-        link.textContent = "Download file";
-        link.download = "";
-        fragment.appendChild(link);
-        return fragment;
-    }
-
-    fragment.appendChild(mediaElement);
-    return fragment;
-}
-
-async function loadMediaPreview(entryName, container) {
-    let entryPath = currentDir + "/" + entryName;
-    try {
-        const headResponse = await head_photosets(entryPath);
-        const contentType = headResponse.headers.get("Content-Type");
-
-        container.textContent = ""; // clear placeholder
-
-        if (contentType && contentType.startsWith("image/")) {
-            const img = loadPhotosetImage(get_apiPath() + entryPath);
-            container.appendChild(img);
-        } 
-        else if (contentType && contentType.startsWith("video/")) {
-            const video = loadPhotosetVideo(get_apiPath() + entryPath);
-            container.appendChild(video);
-        } 
-        else {
-            container.textContent = "";
+                // 2. Clear the DOM
+                unloadMediaFromContainer(container);
+                container.dataset.loaded = "false";
+            }
         }
+    });
+}, {
+    rootMargin: '1000px 0px 1000px 0px' 
+});
+
+function unloadMediaFromContainer(container) {
+    // Optimization: If there's a video, pause it and clear src before removing
+    const video = container.querySelector('video');
+    if (video) {
+        video.pause();
+        video.src = "";
+        video.load();
+    }
+    
+    // Clear the DOM and show the placeholder text again
+    container.innerHTML = "Scrolling into view...";
+}
+
+async function renderMediaIntoContainer(entryName, container, signal) {
+    const entryPath = currentDir + (currentDir.endsWith("/") ? "" : "/") + entryName;
+    
+    try {
+        // Pass the signal to your API call
+        // Note: You need to update your head_photosets function to accept a signal!
+        const res = await head_photosets(entryPath, { signal });
+        
+        const contentType = res.headers.get("Content-Type") || "";
+        const mediaUrl = getAuthMediaUrl(entryPath);
+
+        // Check if we were aborted while waiting for the HEAD response
+        if (signal.aborted) return;
+
+        container.textContent = "";
+
+        if (contentType.startsWith("image/")) {
+            const img = document.createElement("img");
+            // For images, we can't easily cancel the 'src' fetch via AbortSignal,
+            // but by not appending it to the DOM if aborted, we save some overhead.
+            img.src = mediaUrl;
+            img.loading = "lazy";
+            img.className = "photoset-image";
+            container.appendChild(img);
+        } else if (contentType.startsWith("video/")) {
+            const video = document.createElement("video");
+            video.src = mediaUrl;
+            video.controls = true;
+            video.preload = "metadata";
+            video.className = "photoset-video";
+            container.appendChild(video);
+        }
+        
+        // Clear the controller reference once done successfully
+        container._abortController = null;
 
     } catch (err) {
-        container.textContent = "Failed to load preview";
-        console.error("Media preview error:", err);
+        if (err.name === 'AbortError') {
+            console.log(`Fetch cancelled for: ${entryName}`);
+        } else {
+            container.textContent = "Error loading";
+            container.dataset.loaded = "false";
+        }
     }
 }
 
 async function loadPhotosetDir(response) {
     const photosetJson = await response.json();
-    const entries = photosetJson.entries;
-
     const fragment = document.createDocumentFragment();
 
-    for (const entry of entries) {
+    photosetJson.entries.forEach(entry => {
         const entryDiv = document.createElement('div');
-        entryDiv.classList.add('photoset-entry');
+        entryDiv.className = 'photoset-entry';
 
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = entry.name;
-        nameSpan.classList.add('photoset-name');
+        const topBar = document.createElement('div');
+        topBar.className = 'photoset-header';
+        topBar.innerHTML = `<span class="photoset-name">${entry.name}</span>`;
 
-        const buttonDiv = document.createElement('div');
-        buttonDiv.classList.add('photoset-buttons');
-
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'photoset-buttons';
+        
         const openBtn = document.createElement('button');
         openBtn.textContent = 'Open';
-        openBtn.addEventListener('click', () => openPhotoset(entry.name));
+        openBtn.onclick = () => openPhotoset(entry.name);
 
         const updateBtn = document.createElement('button');
         updateBtn.textContent = 'Update';
         updateBtn.addEventListener('click', () => updatePhotoset(entry.name));
 
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.addEventListener('click', () => deletePhotoset(entry.name));
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        delBtn.onclick = () => deletePhotoset(entry.name);
 
-        buttonDiv.append(openBtn, updateBtn, deleteBtn);
-        entryDiv.append(nameSpan, buttonDiv);
-        fragment.appendChild(entryDiv);
+        btnGroup.append(openBtn, updateBtn, delBtn);
+        entryDiv.append(topBar, btnGroup);
 
+        // Placeholder for the sliding window
         const mediaContainer = document.createElement("div");
-        mediaContainer.classList.add("photoset-media");
-        mediaContainer.textContent = "Loading preview...";
-
-        entryDiv.append(nameSpan, buttonDiv, mediaContainer);
+        mediaContainer.className = "photoset-media-container";
+        mediaContainer.dataset.entryName = entry.name;
+        mediaContainer.dataset.loaded = "false";
+        mediaContainer.textContent = "Loading...";
+        
+        entryDiv.appendChild(mediaContainer);
         fragment.appendChild(entryDiv);
-        loadMediaPreview(entry.name, mediaContainer);
-    }
+
+        mediaObserver.observe(mediaContainer);
+    });
 
     return fragment;
 }
 
-async function loadPhotoset() {
-    let photosetInfo = await head_photosets(currentDir);
-    let contentType = photosetInfo.headers.get("content-type");
+function createMediaElement(path, contentType = "") {
+    const authenticatedUrl = getAuthMediaUrl(path);
+    const lower = path.toLowerCase();
 
-    let photosetList = document.getElementById("photosetList");
-    photosetList.classList = []
-    let newContent = null;
-
-    if (contentType != null && contentType.indexOf("application/json") !== -1) {
-        let photosetDir = await get_photosets(currentDir);
-        newContent = await loadPhotosetDir(photosetDir);
-        photosetList.classList.add("grid")
-    } else {
-        let serverPath = get_apiPath() + currentDir;
-        newContent = loadPhotosetFile(serverPath);
+    // 1. Images
+    if (contentType.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(lower)) {
+        const img = document.createElement("img");
+        img.src = authenticatedUrl;
+        img.loading = "lazy";
+        img.className = "photoset-image";
+        return img;
     }
 
-    photosetList.replaceChildren(newContent);
+    // 2. Videos
+    if (contentType.startsWith("video/") || /\.(mp4|webm|mov|ogg)$/i.test(lower)) {
+        const video = document.createElement("video");
+        video.src = authenticatedUrl;
+        video.controls = true;
+        video.preload = "metadata";
+        video.playsInline = true;
+        video.className = "photoset-video";
+        return video;
+    }
+
+    // 3. Documents (Your updated iframe logic)
+    if (contentType.includes("text/html") || contentType.includes("text/plain") || /\.(txt|html?)$/i.test(lower)) {
+        const iframe = document.createElement("iframe");
+        iframe.src = authenticatedUrl;
+        iframe.classList.add("photoset-iframe");
+
+        return iframe;
+    }
+
+    // 4. Fallback: Download Link
+    const link = document.createElement("a");
+    link.href = authenticatedUrl;
+    link.textContent = `Download ${path.split('/').pop()}`;
+    link.className = "photoset-download-link";
+    link.download = "";
+    return link;
+}
+
+export async function loadPhotoset() {
+    const photosetList = document.getElementById("photosetList");
+    photosetList.innerHTML = "Processing...";
+    
+    try {
+        const photosetInfo = await head_photosets(currentDir);
+        const contentType = photosetInfo.headers.get("Content-Type") || "";
+        photosetList.innerHTML = ""; 
+
+        let newContent;
+        if (contentType.includes("application/json")) {
+            const response = await get_photosets(currentDir);
+            newContent = await loadPhotosetDir(response);
+            photosetList.classList.add("grid");
+        } else {
+            // Single File View
+            newContent = document.createElement("div");
+            newContent.className = "single-media-wrapper";
+            newContent.appendChild(createMediaElement(currentDir, contentType));
+            photosetList.classList.remove("grid");
+        }
+
+        photosetList.appendChild(newContent);
+    } catch (err) {
+        photosetList.textContent = "Failed to load photoset.";
+    }
 }
 
 async function navBack() {
