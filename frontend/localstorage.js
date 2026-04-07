@@ -1,36 +1,47 @@
-function setCookie(name,value,days) {
-    var expires = "";
-    if (days) {
-        var date = new Date();
-        date.setTime(date.getTime() + (days*24*60*60*1000));
-        expires = "; expires=" + date.toUTCString();
-    }
-    document.cookie = name + "=" + (value || "")  + expires + "; path=/";
-}
+// Helper to manage storage safely
+const storage = {
+    set: (key, value) => {
+        if (value) {
+            localStorage.setItem(key, value);
+            // Sets a cookie that expires in 7 days, accessible by all paths
+            document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Strict`;
+        } else {
+            localStorage.removeItem(key);
+            // Expire the cookie immediately to delete it
+            document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Strict`;
+        }
+    },
+    get: (key) => {
+        // Try LocalStorage first (faster)
+        const localVal = localStorage.getItem(key);
+        if (localVal) return localVal;
 
-function getCookie(name) {
-    var nameEQ = name + "=";
-    var ca = document.cookie.split(';');
-    for(var i=0;i < ca.length;i++) {
-        var c = ca[i];
-        while (c.charAt(0)==' ') c = c.substring(1,c.length);
-        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+        // Fallback: Parse Cookies
+        const name = key + "=";
+        const decodedCookie = decodeURIComponent(document.cookie);
+        const ca = decodedCookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i].trim();
+            if (c.indexOf(name) === 0) {
+                return c.substring(name.length, c.length);
+            }
+        }
+        return null;
     }
-    return null;
-}
+};
 
 export function getServer() {
-    return getCookie("server_ip");
+    return storage.get("server_ip");
 }
 
 export function getToken() {
-    return getCookie("auth");
+    return storage.get("auth");
 }
 
 export function setServer(val) {
-    setCookie("server_ip", val);
+    storage.set("server_ip", val);
 }
 
 export function setToken(val) {
-    setCookie("auth", val);
+    storage.set("auth", val);
 }

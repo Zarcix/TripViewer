@@ -2,51 +2,34 @@ import { getServer, getToken } from "./localstorage.js";
 
 const API_PATH = "/api/photoset"
 
-// export async function request(method, path, body = null, isForm = false) {
-//     const headers = {};
 
-//     const token = getToken();
-//     if (token) headers["Bearer"] = token;
-
-//     let options = { method, headers };
-
-//     if (body) {
-//         if (isForm) {
-//             options.body = body;
-//         } else {
-//             headers["Content-Type"] = "application/json";
-//             options.body = JSON.stringify(body);
-//         }
-//     }
-
-//     const res = await fetch(`${getServer()}${path}`, options);
-
-//     if (!res.ok) {
-//         const text = await res.text();
-//         throw new Error(`${res.status}: ${text}`);
-//     }
-
-//     return res;
-// }
+const getAuthHeaders = () => {
+    const token = getToken();
+    return token ? { "Authorization": `Bearer ${token}` } : {};
+};
 
 export function get_apiPath() {
     const server = getServer();
     return `${server}${API_PATH}`
 }
 
-export async function get_photosets(path) {
+export async function get_photosets(path, options = {}) {
     const server = getServer();
     const res = await fetch(`${server}${API_PATH}${path}`, {
-        method: "GET"
+        method: "GET",
+        headers: getAuthHeaders(),
+        signal: options.signal
     })
 
     return res;
 }
 
-export async function head_photosets(path) {
+export async function head_photosets(path, options = {}) {
     const server = getServer();
     const res = await fetch(`${server}${API_PATH}${path}`, {
-        method: "HEAD"
+        method: "HEAD",
+        headers: getAuthHeaders(),
+        signal: options.signal
     })
 
     return res;
@@ -55,7 +38,8 @@ export async function head_photosets(path) {
 export async function create_photoset(path) {
     const server = getServer();
     const res = await fetch(`${server}${API_PATH}${path}`, {
-        method: "POST"
+        method: "POST",
+        headers: getAuthHeaders()
     })
 
     return res;
@@ -70,7 +54,8 @@ export async function update_photoset(path, new_name) {
 
     const res = await fetch(`${server}${API_PATH}${path}`, {
         method: "PATCH",
-        body: formData
+        body: formData,
+        headers: getAuthHeaders()
     });
 
     return res;
@@ -83,6 +68,8 @@ export function put_photoset(path, file, onProgress) {
     const promise = new Promise((resolve, reject) => {
         xhr.open("PUT", `${server}${API_PATH}${path}`);
         xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+        xhr.setRequestHeader("Authorization", `Bearer ${getToken()}`);
 
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable && onProgress) {
@@ -109,7 +96,8 @@ export function put_photoset(path, file, onProgress) {
 export async function delete_photoset(path) {
     const server = getServer();
     const res = await fetch(`${server}${API_PATH}${path}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: getAuthHeaders()
     })
 
     return res;
