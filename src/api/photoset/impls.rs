@@ -39,7 +39,10 @@ impl<'r> Responder<'r, 'static> for models::FileServerResponse {
             models::FileServerResponse::DirectoryListing(dir_listing) => {
                 dir_listing.respond_to(req)
             }
-        }
+        }.and_then(|mut resp| {
+            resp.set_raw_header("Cache-control", "max-age=86400");
+            Ok(resp)
+        })
     }
 }
 
